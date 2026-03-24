@@ -268,8 +268,9 @@
     /* Chat messages */
     .chat-messages {
       display: flex; flex-direction: column; gap: 10px;
-      max-height: 280px; overflow-y: auto; padding-right: 4px;
+      max-height: 420px; overflow-y: auto; padding-right: 6px;
       margin-bottom: 2px;
+      scroll-behavior: smooth;
     }
     .chat-messages:empty::before {
       content: 'Your conversation with Luna will appear here.';
@@ -279,9 +280,9 @@
     .chat-messages::-webkit-scrollbar { width: 3px; }
     .chat-messages::-webkit-scrollbar-thumb { background: var(--rose-pale); border-radius: 2px; }
 
-    .msg { display: flex; flex-direction: column; max-width: 88%; animation: msgPop 0.25s ease both; }
-    .msg.user { align-self: flex-end; align-items: flex-end; }
-    .msg.luna  { align-self: flex-start; align-items: flex-start; }
+    .msg { display: flex; flex-direction: column; max-width: 98%; animation: msgPop 0.25s ease both; }
+    .msg.user { align-self: flex-end; align-items: flex-end; max-width: 88%; }
+    .msg.luna  { align-self: flex-start; align-items: flex-start; max-width: 100%; }
     .msg-label {
       font-size: 0.62rem; font-weight: 600; letter-spacing: 0.12em;
       text-transform: uppercase; margin-bottom: 4px;
@@ -533,11 +534,17 @@
       <a class="header-link" href="https://www.seedcycle.com" target="_blank" rel="noopener">Shop Seed Cycle<sup style="font-size:0.55em;vertical-align:super;">®</sup> →</a>
     </header>
 
-    <!-- Luna intro -->
-    <div class="intro">
-      <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style="margin-bottom:20px;display:block;">
-        <img src="logo.png" alt="Seed Cycle® — organic seed cycling blends" class="logo-img" style="height:44px;" />
+    <!-- Header — logo top left, shop link top right -->
+    <header style="justify-content:space-between;">
+      <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style="display:flex;align-items:center;gap:7px;text-decoration:none;">
+        <span style="font-size:0.6rem;font-weight:600;letter-spacing:0.14em;text-transform:uppercase;color:var(--light);white-space:nowrap;">Powered by</span>
+        <img src="logo.png" alt="Seed Cycle®" style="height:36px;width:auto;display:block;" />
       </a>
+      <a class="header-link" href="https://www.seedcycle.com" target="_blank" rel="noopener">Shop Seed Cycle<sup style="font-size:0.55em;vertical-align:super;">®</sup> →</a>
+    </header>
+
+    <!-- Luna intro — no logo here now -->
+    <div class="intro">
       <div class="luna-avatar-wrap" id="lunaAvatar">
         <div class="luna-ring"></div>
         <div class="luna-ring-mid"></div>
@@ -566,7 +573,7 @@
 
       <p class="intro-eyebrow">Your Seed Cycle<sup style="font-size:0.6em;vertical-align:super;">®</sup> Guide</p>
       <h1 class="intro-title">Meet <em>Luna</em></h1>
-      <p class="intro-sub">Luna can answer your questions about seed cycling — from how seed cycling works, to our Phase 1 &amp; 2 blends, and getting started with Seed Cycle<sup style="font-size:0.6em;vertical-align:super;">®</sup>.</p>
+      <p class="intro-sub">Luna can answer your questions about seed cycling and female health.</p>
     </div>
 
     <!-- ── CENTREPIECE INTERACTION ZONE ── -->
@@ -742,7 +749,12 @@
       wrap.appendChild(label);
       wrap.appendChild(bubble);
       chatMessages.appendChild(wrap);
-      chatMessages.scrollTop = chatMessages.scrollHeight;
+      // Scroll so Luna's answer starts at the top of the chat area
+      if (role === 'luna') {
+        setTimeout(() => { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
+      } else {
+        chatMessages.scrollTop = chatMessages.scrollHeight;
+      }
       /* fade chips once conversation starts */
       questionsSection.style.opacity = '0.35';
       questionsSection.style.pointerEvents = 'none';
