@@ -706,6 +706,7 @@
     let voiceActive = false;
     let voiceConv   = null;
     let history     = [];
+    let history     = [];
 
     /* status */
     function setStatus(state, text) {
@@ -753,94 +754,29 @@
       if (on) chatMessages.scrollTop = chatMessages.scrollHeight;
     }
 
-    /* ── ElevenLabs text session ──
-       We open a WebSocket to the same Luna agent and send text messages.
-       Audio responses are played back; transcripts shown in the chat UI. */
-    let textWs       = null;
-    let textAudioCtx = null;
-    let textQueue    = [];
-    let textPlaying  = false;
-
-    async function ensureTextSession() {
-      if (textWs && textWs.readyState === WebSocket.OPEN) return;
-
-      textAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      textQueue    = [];
-      textPlaying  = false;
-
-      textWs = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
-
-      textWs.onopen = () => {
-        textWs.send(JSON.stringify({ type: 'conversation_initiation_client_data' }));
-      };
-
-      textWs.onmessage = (ev) => {
-        let d; try { d = JSON.parse(ev.data); } catch { return; }
-        switch (d.type) {
-          case 'agent_response':
-            const reply = d.agent_response_event?.agent_response || '';
-            showTyping(false);
-            setStatus('ready', 'Ready');
-            lunaAvatar.classList.remove('speaking');
-            addMsg('luna', reply);
-            break;
-          case 'audio':
-            if (d.audio_event?.audio_base_64) {
-              textQueue.push(d.audio_event.audio_base_64);
-              playTextAudio();
-            }
-            break;
-          case 'ping':
-            setTimeout(() => {
-              if (textWs.readyState === WebSocket.OPEN)
-                textWs.send(JSON.stringify({ type: 'pong', event_id: d.ping_event.event_id }));
-            }, d.ping_event.ping_ms ?? 0);
-            break;
-        }
-      };
-
-      textWs.onerror = () => {
-        showTyping(false);
-        setStatus('', 'Connection error — please try again');
-        lunaAvatar.classList.remove('speaking');
-      };
-
-      /* Wait for connection */
-      await new Promise((res) => {
-        const check = setInterval(() => {
-          if (textWs.readyState === WebSocket.OPEN) { clearInterval(check); res(); }
-        }, 50);
-      });
-    }
-
-    async function playTextAudio() {
-      if (textPlaying || !textQueue.length) return;
-      textPlaying = true;
-      const b64 = textQueue.shift();
-      const bin = atob(b64); const buf = new Uint8Array(bin.length);
-      for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-      try {
-        const decoded = await textAudioCtx.decodeAudioData(buf.buffer);
-        const s = textAudioCtx.createBufferSource();
-        s.buffer = decoded; s.connect(textAudioCtx.destination);
-        s.onended = () => { textPlaying = false; playTextAudio(); };
-        s.start();
-      } catch { textPlaying = false; playTextAudio(); }
-    }
-
     async function sendText(text) {
       if (!text.trim()) return;
       addMsg('user', text);
+      history.push({ role: 'user', content: text });
       showTyping(true);
       setStatus('thinking', 'Luna is thinking…');
       lunaAvatar.classList.add('speaking');
 
       try {
-        await ensureTextSession();
-        textWs.send(JSON.stringify({
-          type: 'user_message',
-          user_message: text
-        }));
+        const res = await fetch('/api/chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ messages: history })
+        });
+
+        const data = await res.json();
+        const reply = data.reply || "I'm sorry, something went wrong. Please try again.";
+        showTyping(false);
+        setStatus('ready', 'Ready');
+        lunaAvatar.classList.remove('speaking');
+        addMsg('luna', reply);
+        history.push({ role: 'assistant', content: reply });
+
       } catch {
         showTyping(false);
         setStatus('', 'Connection error — please try again');
