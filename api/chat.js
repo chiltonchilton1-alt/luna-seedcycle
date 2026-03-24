@@ -245,10 +245,16 @@ module.exports = async function handler(req, res) {
     return res.status(405).json({ error: 'Method not allowed' });
   }
 
-  const { messages } = req.body;
+  // Parse body if needed
+  let body = req.body;
+  if (typeof body === 'string') {
+    try { body = JSON.parse(body); } catch { return res.status(400).json({ error: 'Invalid JSON' }); }
+  }
+
+  const messages = body?.messages;
 
   if (!messages || !Array.isArray(messages)) {
-    return res.status(400).json({ error: 'Invalid request — messages array required' });
+    return res.status(400).json({ error: 'Invalid request — messages array required', received: typeof body });
   }
 
   const apiKey = process.env.ANTHROPIC_KEY;
@@ -265,7 +271,7 @@ module.exports = async function handler(req, res) {
         'anthropic-version': '2023-06-01'
       },
       body: JSON.stringify({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-opus-4-5',
         max_tokens: 1000,
         system: SYSTEM_PROMPT,
         messages: messages
@@ -275,13 +281,13 @@ module.exports = async function handler(req, res) {
     const data = await response.json();
 
     if (!response.ok) {
-      return res.status(response.status).json({ error: data.error?.message || 'API error' });
+      return res.status(response.status).json({ error: data.error?.message || 'API error', detail: data });
     }
 
     const reply = data.content?.[0]?.text || "I'm sorry, something went wrong. Please try again.";
     return res.status(200).json({ reply });
 
   } catch (error) {
-    return res.status(500).json({ error: 'Connection error — please try again' });
+    return res.status(500).json({ error: error.message || 'Connection error — please try again' });
   }
 }
