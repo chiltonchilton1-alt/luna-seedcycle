@@ -861,6 +861,13 @@
       // AudioContext — no forced sampleRate for cross-device compatibility
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const audioCtx = new AudioCtx();
+
+      // Unlock audio output immediately with a silent buffer — required by all browsers
+      const unlockBuffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
+      const unlockSource = audioCtx.createBufferSource();
+      unlockSource.buffer = unlockBuffer;
+      unlockSource.connect(audioCtx.destination);
+      unlockSource.start(0);
       if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
 
       const source    = audioCtx.createMediaStreamSource(stream);
