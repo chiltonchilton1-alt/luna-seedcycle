@@ -868,7 +868,7 @@
 
       // Android-safe AudioContext — don't force sampleRate, let device decide
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtx();
+      const audioCtx = new AudioCtx({ sampleRate: 16000 });
       if (audioCtx.state === 'suspended') await audioCtx.resume();
 
       const stream = await navigator.mediaDevices.getUserMedia({
