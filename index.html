@@ -901,23 +901,30 @@
         ws.send(JSON.stringify({ user_audio_chunk: toBase64(p.buffer) }));
       };
 
-      async function playNext() {
-        if (playing || !queue.length) return;
-        playing = true;
-        // iOS requires AudioContext resume before playing
-        if (audioCtx.state === 'suspended') await audioCtx.resume();
-        const b64 = queue.shift();
-        const bin = atob(b64);
-        const buf = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        try {
-          const decoded = await audioCtx.decodeAudioData(buf.buffer);
-          const s = audioCtx.createBufferSource();
-          s.buffer = decoded; s.connect(audioCtx.destination);
-          s.onended = () => { playing = false; playNext(); };
-          s.start();
-        } catch { playing = false; playNext(); }
-      }
+   async function playNext() {
+  if (playing || !queue.length) return;
+  playing = true;
+  if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
+  const b64 = queue.shift();
+  const bin = atob(b64);
+  const bytes = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+  try {
+    // ElevenLabs sends raw 16-bit PCM — convert directly to AudioBuffer
+    const samples = bytes.length / 2;
+    const buffer = audioCtx.createBuffer(1, samples, 16000);
+    const channel = buffer.getChannelData(0);
+    const view = new DataView(bytes.buffer);
+    for (let i = 0; i < samples; i++) {
+      channel[i] = view.getInt16(i * 2, true) / 32768;
+    }
+    const s = audioCtx.createBufferSource();
+    s.buffer = buffer;
+    s.connect(audioCtx.destination);
+    s.onended = () => { playing = false; playNext(); };
+    s.start();
+  } catch(e) { playing = false; playNext(); }
+}
 
       ws.onopen = () => {
         ws.send(JSON.stringify({ type: 'conversation_initiation_client_data' }));
