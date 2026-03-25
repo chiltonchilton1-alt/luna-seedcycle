@@ -508,6 +508,7 @@
       .chat-messages { max-height: 200px; }
     }
   </style>
+  <script src="https://cdn.jsdelivr.net/npm/@11labs/client@0.0.7/dist/index.umd.js"></script>
 </head>
 <body>
 
@@ -696,7 +697,7 @@
 
     let currentMode = 'text';
     let voiceActive = false;
-    let voiceConv   = null;
+    let conversation = null;
     let history     = [];
 
     /* status */
@@ -830,17 +831,15 @@
       });
     });
 
-    /* ── Voice mode ── */
+    /* ── Voice mode — ElevenLabs official SDK ── */
+    let conversation = null;
+
     async function startVoice() {
-      // Get microphone stream once
-      let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
       } catch (err) {
         const msg = err.name === 'NotAllowedError'
           ? 'Microphone access denied — check browser settings'
-          : err.name === 'NotFoundError'
-          ? 'No microphone found'
           : 'Microphone unavailable — please try again';
         setStatus('', msg);
         return;
@@ -854,119 +853,49 @@
       voiceStatus.textContent = 'Connecting…';
       setStatus('thinking', 'Connecting…');
 
-      const ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
-      const queue = [];
-      let playing = false;
-
-      // AudioContext — no forced sampleRate for cross-device compatibility
-      const AudioCtx = window.AudioContext || window.webkitAudioContext;
-      const audioCtx = new AudioCtx();
-
-      // Unlock audio output immediately with a silent buffer — required by all browsers
-      const unlockBuffer = audioCtx.createBuffer(1, 1, audioCtx.sampleRate);
-      const unlockSource = audioCtx.createBufferSource();
-      unlockSource.buffer = unlockBuffer;
-      unlockSource.connect(audioCtx.destination);
-      unlockSource.start(0);
-      if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
-
-      const source    = audioCtx.createMediaStreamSource(stream);
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
-      source.connect(processor);
-      processor.connect(audioCtx.destination);
-
-      // Mobile-safe base64 — chunked to avoid stack overflow on Android
-      function toBase64(buffer) {
-        const bytes = new Uint8Array(buffer);
-        let bin = '';
-        for (let i = 0; i < bytes.length; i += 8192) {
-          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
-        }
-        return btoa(bin);
-      }
-
-      processor.onaudioprocess = (e) => {
-        if (ws.readyState !== WebSocket.OPEN) return;
-        const f = e.inputBuffer.getChannelData(0);
-        const p = new Int16Array(f.length);
-        for (let i = 0; i < f.length; i++) p[i] = Math.max(-32768, Math.min(32767, f[i] * 32768));
-        ws.send(JSON.stringify({ user_audio_chunk: toBase64(p.buffer) }));
-      };
-
-      async function playNext() {
-        if (playing || !queue.length) return;
-        playing = true;
-        if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
-        const b64 = queue.shift();
-        const bin = atob(b64);
-        const buf = new Uint8Array(bin.length);
-        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
-        try {
-          const decoded = await audioCtx.decodeAudioData(buf.buffer);
-          const s = audioCtx.createBufferSource();
-          s.buffer = decoded; s.connect(audioCtx.destination);
-          s.onended = () => { playing = false; playNext(); };
-          s.start();
-        } catch { playing = false; playNext(); }
-      }
-
-      ws.onopen = () => {
-        ws.send(JSON.stringify({ type: 'conversation_initiation_client_data' }));
-        voiceStatus.textContent = 'Listening…';
-        setStatus('ready', 'Listening');
-        waveform.classList.add('active');
-      };
-
-      ws.onmessage = (ev) => {
-        let d; try { d = JSON.parse(ev.data); } catch { return; }
-        switch (d.type) {
-          case 'user_transcript':
-            voiceStatus.textContent = d.user_transcription_event?.user_transcript || '';
+      try {
+        conversation = await window.ElevenLabs.Conversation.startSession({
+          agentId: AGENT_ID,
+          onConnect: () => {
+            voiceStatus.textContent = 'Listening…';
             setStatus('ready', 'Listening');
-            lunaAvatar.classList.remove('speaking');
-            break;
-          case 'agent_response':
-            const t = d.agent_response_event?.agent_response || '';
-            voiceStatus.textContent = t.length > 55 ? t.slice(0,52)+'…' : t;
-            setStatus('speaking', 'Luna is speaking');
-            lunaAvatar.classList.add('speaking');
-            break;
-          case 'audio':
-            if (d.audio_event?.audio_base_64) { queue.push(d.audio_event.audio_base_64); playNext(); }
-            break;
-          case 'interruption':
-            queue.length = 0; playing = false;
-            lunaAvatar.classList.remove('speaking');
-            break;
-          case 'ping':
-            setTimeout(() => {
-              if (ws.readyState === WebSocket.OPEN)
-                ws.send(JSON.stringify({ type:'pong', event_id: d.ping_event.event_id }));
-            }, d.ping_event.ping_ms ?? 0);
-            break;
-        }
-      };
-
-      function cleanup() {
-        voiceActive = false;
-        voiceBtn.classList.remove('active');
-        micIcon.style.display  = 'block';
-        stopIcon.style.display = 'none';
-        waveform.classList.remove('active', 'visible');
-        lunaAvatar.classList.remove('speaking');
-        voiceStatus.textContent = 'Tap to speak';
-        setStatus('ready', 'Ready');
-        try { processor.disconnect(); source.disconnect(); } catch {}
-        try { stream.getTracks().forEach(t => t.stop()); } catch {}
-        try { audioCtx.close(); } catch {}
+            waveform.classList.add('active');
+          },
+          onDisconnect: () => { cleanupVoice(); },
+          onError: () => { setStatus('', 'Connection error'); cleanupVoice(); },
+          onModeChange: ({ mode }) => {
+            if (mode === 'speaking') {
+              setStatus('speaking', 'Luna is speaking');
+              lunaAvatar.classList.add('speaking');
+            } else {
+              setStatus('ready', 'Listening');
+              lunaAvatar.classList.remove('speaking');
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Voice error:', err);
+        setStatus('', 'Could not connect — please try again');
+        cleanupVoice();
       }
-
-      ws.onerror = () => { setStatus('', 'Connection error'); cleanup(); };
-      ws.onclose = () => { if (voiceActive) cleanup(); };
-      voiceConv = { ws, cleanup };
     }
 
-    function stopVoice() { voiceConv?.ws?.close(); voiceConv?.cleanup?.(); voiceConv = null; }
+    function cleanupVoice() {
+      voiceActive = false;
+      conversation = null;
+      voiceBtn.classList.remove('active');
+      micIcon.style.display  = 'block';
+      stopIcon.style.display = 'none';
+      waveform.classList.remove('active', 'visible');
+      lunaAvatar.classList.remove('speaking');
+      voiceStatus.textContent = 'Tap to speak';
+      setStatus('ready', 'Ready');
+    }
+
+    function stopVoice() {
+      if (conversation) { try { conversation.endSession(); } catch {} conversation = null; }
+      cleanupVoice();
+    }
 
     voiceBtn.addEventListener('click', async () => {
       if (voiceActive) { stopVoice(); return; }
