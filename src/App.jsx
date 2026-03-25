@@ -44,7 +44,7 @@ export default function App() {
       setStatus({ state: 'ready', text: 'Listening' })
     },
     onDisconnect: () => {
-      setVoiceStatus('Tap to speak')
+      setVoiceStatus('')
       setStatus({ state: 'ready', text: 'Ready' })
     },
     onError: (err) => {
@@ -54,8 +54,7 @@ export default function App() {
     },
     onMessage: ({ message, source }) => {
       if (source === 'ai' && message) {
-        const t = message.length > 55 ? message.slice(0, 52) + '…' : message
-        setVoiceStatus(t)
+        setVoiceStatus(message)
       }
     },
   })
@@ -66,10 +65,8 @@ export default function App() {
   useEffect(() => {
     if (lunaSpeaking) {
       setStatus({ state: 'speaking', text: 'Luna is speaking' })
-      setVoiceStatus('Luna is speaking…')
     } else if (voiceActive) {
       setStatus({ state: 'ready', text: 'Listening' })
-      setVoiceStatus('Listening…')
     }
   }, [lunaSpeaking, voiceActive])
 
@@ -182,7 +179,7 @@ export default function App() {
           </div>
           <p style={styles.eyebrow}>Your Seed Cycle<sup style={{fontSize:'0.6em',verticalAlign:'super'}}>®</sup> Guide</p>
           <h1 style={styles.title}>Meet <em style={styles.titleEm}>Luna</em></h1>
-          <p style={styles.sub}>Luna can answer your questions about seed cycling and female health.</p>
+          <p style={styles.sub}>Luna can answer your questions about seed cycling.</p>
         </div>
 
         {/* Interaction zone */}
@@ -285,7 +282,20 @@ export default function App() {
                 )}
               </button>
 
-              <span style={styles.voiceStatusText}>{voiceStatus}</span>
+              <span style={styles.voiceStatusText}>
+                {voiceActive
+                  ? (lunaSpeaking ? 'Luna is speaking…' : 'Listening…')
+                  : 'Tap to speak'}
+              </span>
+
+              {voiceStatus && voiceActive && (
+                <div style={styles.transcriptBox}>
+                  <p style={styles.transcriptLabel}>
+                    {lunaSpeaking ? 'Luna' : 'You'}
+                  </p>
+                  <p style={styles.transcriptText}>{voiceStatus}</p>
+                </div>
+              )}
             </div>
           )}
 
@@ -392,7 +402,10 @@ const styles = {
   waveBar: { width:3, height:4, borderRadius:2, background:'var(--rose-light)', transition:'height 0.1s' },
   voiceBtn: { position:'relative', width:80, height:80, borderRadius:'50%', background:'linear-gradient(145deg, var(--gold-light), var(--gold))', border:'none', cursor:'pointer', display:'flex', alignItems:'center', justifyContent:'center', boxShadow:'0 10px 36px rgba(212,150,42,0.36)', transition:'transform 0.2s, box-shadow 0.2s' },
   voiceBtnActive: { background:'linear-gradient(145deg, #e8c97a, var(--gold))' },
-  voiceStatusText: { fontSize:'0.7rem', fontWeight:500, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--mid)', maxWidth:280, textAlign:'center', overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' },
+  voiceStatusText: { fontSize:'0.7rem', fontWeight:500, letterSpacing:'0.1em', textTransform:'uppercase', color:'var(--light)', maxWidth:280, textAlign:'center' },
+  transcriptBox: { width:'100%', maxWidth:420, minHeight:80, maxHeight:160, overflowY:'auto', background:'var(--warm-white)', border:'1px solid var(--border)', borderRadius:16, padding:'14px 18px', boxShadow:'0 2px 8px rgba(155,94,106,0.06)' },
+  transcriptLabel: { fontSize:'0.62rem', fontWeight:600, letterSpacing:'0.12em', textTransform:'uppercase', color:'var(--rose)', marginBottom:6 },
+  transcriptText: { fontSize:'0.9rem', lineHeight:1.7, color:'var(--charcoal)', fontWeight:400 },
   statusPill: { display:'flex', alignItems:'center', justifyContent:'center', gap:7, padding:'6px 14px', borderRadius:100, background:'rgba(255,255,255,0.65)', border:'1px solid var(--border)', width:'fit-content', margin:'4px auto 0', transition:'all 0.3s' },
   statusDot: { width:6, height:6, borderRadius:'50%', background:'var(--light)', flexShrink:0, transition:'background 0.3s' },
   status_ready: {}, status_thinking: {}, status_speaking: {}, status_: {},
@@ -408,3 +421,4 @@ const styles = {
   footer: { padding:'12px 0 24px', textAlign:'center', animation:'fadeUp 0.6s 0.40s ease both' },
   footerNote: { fontSize:'0.64rem', color:'var(--light)', fontWeight:400, lineHeight:1.5 },
 }
+
