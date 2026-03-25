@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useConversation } from '@11labs/react'
+import logoSvg from '../logo.svg'
 
 const AGENT_ID = 'agent_5001kehdf6nmeqyr7nf4ga7k3d91'
 
@@ -161,7 +162,7 @@ export default function App() {
         <header style={styles.header}>
           <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style={styles.logoLink}>
             <span style={styles.poweredBy}>Powered by</span>
-            <img src="/logo.svg" alt="Seed Cycle®" style={styles.logoImg} />
+            <img src={logoSvg} alt="Seed Cycle®" style={styles.logoImg} />
           </a>
           <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style={styles.shopLink}>
             Shop Seed Cycle<sup style={{fontSize:'0.55em',verticalAlign:'super'}}>®</sup> →
