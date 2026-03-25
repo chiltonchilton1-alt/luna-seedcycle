@@ -878,7 +878,7 @@
       const source = audioCtx.createMediaStreamSource(stream);
 
       // Use ScriptProcessor for broad mobile compatibility (4096 buffer)
-      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      const processor = audioCtx.createScriptProcessor(1024, 1, 1);
       source.connect(processor);
       processor.connect(audioCtx.destination);
 
@@ -921,7 +921,10 @@
     const s = audioCtx.createBufferSource();
     s.buffer = buffer;
     s.connect(audioCtx.destination);
-    s.onended = () => { playing = false; playNext(); };
+    s.onended = () => {
+      playing = false;
+      playNext();
+    };
     s.start();
   } catch(e) { playing = false; playNext(); }
 }
@@ -992,15 +995,7 @@
     function stopVoice() { voiceConv?.ws?.close(); voiceConv?.cleanup?.(); voiceConv = null; }
 
     voiceBtn.addEventListener('click', async () => {
-      if (voiceActive) {
-        // If Luna is speaking, send interruption then continue listening
-        if (voiceConv && voiceConv.ws && voiceConv.ws.readyState === WebSocket.OPEN) {
-          // Clear audio queue and stop playback immediately
-          if (voiceConv.stopPlayback) voiceConv.stopPlayback();
-        }
-        // Don't stop the session — just interrupt and keep listening
-        return;
-      }
+      if (voiceActive) { stopVoice(); return; }
       const perm = await navigator.permissions.query({ name:'microphone' }).catch(() => null);
       if (perm?.state === 'denied') { setStatus('', 'Microphone blocked — check browser settings'); return; }
       if (perm?.state !== 'granted') { micOverlay.classList.add('visible'); return; }
