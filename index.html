@@ -978,9 +978,7 @@
 
     voiceBtn.addEventListener('click', async () => {
       if (voiceActive) { stopVoice(); return; }
-      const perm = await navigator.permissions.query({ name:'microphone' }).catch(() => null);
-      if (perm?.state === 'denied') { setStatus('', 'Microphone blocked — check browser settings'); return; }
-      if (perm?.state !== 'granted') { micOverlay.classList.add('visible'); return; }
+      // Skip permissions API check — just request mic directly and let browser handle it
       startVoice();
     });
 
