@@ -744,9 +744,18 @@
       text = text.replace(/^#{1,3}\s+/gm, '');
       // Remove leading/trailing whitespace per line
       text = text.replace(/^[ \t]+|[ \t]+$/gm, '');
-      // Split into paragraphs on double newlines or single newlines
+      // Split into paragraphs
       const paras = text.split(/\n{2,}|\n/).filter(p => p.trim().length > 0);
-      return paras.map(p => `<p>${p.trim()}</p>`).join('');
+      // Convert to HTML paragraphs with clickable links
+      return paras.map(p => {
+        // Make any seedcycle.com URL or mention clickable
+        p = p.replace(/(https?:\/\/(?:www\.)?seedcycle\.com[^\s,)]*)/gi,
+          '<a href="$1" target="_blank" rel="noopener" style="color:var(--rose);text-decoration:underline;text-underline-offset:2px;">$1</a>');
+        // Also catch bare mentions like "seedcycle.com" without https
+        p = p.replace(/(?<!href=["'])(?<!\/\/)((?:www\.)?seedcycle\.com(?:\/[^\s,)]*)?)/gi,
+          '<a href="https://$1" target="_blank" rel="noopener" style="color:var(--rose);text-decoration:underline;text-underline-offset:2px;">$1</a>');
+        return `<p>${p.trim()}</p>`;
+      }).join('');
     }
 
     function addMsg(role, content) {
