@@ -508,7 +508,6 @@
       .chat-messages { max-height: 200px; }
     }
   </style>
-  <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
 </head>
 <body>
 
@@ -608,12 +607,28 @@
         </button>
       </div>
 
-      <!-- Voice panel — ElevenLabs widget -->
+      <!-- Voice panel -->
       <div class="voice-panel" id="voicePanel">
-        <div style="display:flex;flex-direction:column;align-items:center;gap:12px;width:100%;">
-          <elevenlabs-convai agent-id="agent_5001kehdf6nmeqyr7nf4ga7k3d91"></elevenlabs-convai>
-          <span class="voice-status" id="voiceStatus">Tap to speak with Luna</span>
+        <div class="waveform" id="waveform">
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
         </div>
+        <button class="voice-btn" id="voiceBtn">
+          <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor"
+               stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/>
+            <line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <svg id="stopIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </button>
+        <span class="voice-status" id="voiceStatus">Tap to speak</span>
       </div>
 
       <!-- Status -->
@@ -684,11 +699,13 @@
     let voiceConv   = null;
     let history     = [];
 
+    /* status */
     function setStatus(state, text) {
       statusPill.className = 'status-pill ' + state;
       statusText.textContent = text;
     }
 
+    /* mode switch */
     function switchMode(mode) {
       currentMode = mode;
       const isText = mode === 'text';
@@ -704,14 +721,22 @@
     textModeBtn.addEventListener('click',  () => switchMode('text'));
     audioModeBtn.addEventListener('click', () => switchMode('audio'));
 
+    /* ── Text chat ── */
     function formatLunaText(text) {
+      // Remove all asterisks (bold/italic markdown)
       text = text.replace(/\*+/g, '');
+      // Remove hash headings
       text = text.replace(/^#{1,3}\s+/gm, '');
+      // Remove leading/trailing whitespace per line
       text = text.replace(/^[ \t]+|[ \t]+$/gm, '');
+      // Split into paragraphs
       const paras = text.split(/\n{2,}|\n/).filter(p => p.trim().length > 0);
+      // Convert to HTML paragraphs with clickable links
       return paras.map(p => {
+        // Make any seedcycle.com URL or mention clickable
         p = p.replace(/(https?:\/\/(?:www\.)?seedcycle\.com[^\s,)]*)/gi,
           '<a href="$1" target="_blank" rel="noopener" style="color:var(--rose);text-decoration:underline;text-underline-offset:2px;">$1</a>');
+        // Also catch bare mentions like "seedcycle.com" without https
         p = p.replace(/(?<!href=["'])(?<!\/\/)((?:www\.)?seedcycle\.com(?:\/[^\s,)]*)?)/gi,
           '<a href="https://$1" target="_blank" rel="noopener" style="color:var(--rose);text-decoration:underline;text-underline-offset:2px;">$1</a>');
         return `<p>${p.trim()}</p>`;
@@ -734,11 +759,13 @@
       wrap.appendChild(label);
       wrap.appendChild(bubble);
       chatMessages.appendChild(wrap);
+      // Scroll so Luna's answer starts at the top of the chat area
       if (role === 'luna') {
         setTimeout(() => { wrap.scrollIntoView({ behavior: 'smooth', block: 'start' }); }, 50);
       } else {
         chatMessages.scrollTop = chatMessages.scrollHeight;
       }
+      /* hide chips once conversation starts */
       questionsSection.classList.add('hidden');
     }
 
@@ -754,12 +781,14 @@
       showTyping(true);
       setStatus('thinking', 'Luna is thinking…');
       lunaAvatar.classList.add('speaking');
+
       try {
         const res = await fetch('/api/chat', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ messages: history })
         });
+
         const data = await res.json();
         const reply = data.reply || "I'm sorry, something went wrong. Please try again.";
         showTyping(false);
@@ -767,6 +796,7 @@
         lunaAvatar.classList.remove('speaking');
         addMsg('luna', reply);
         history.push({ role: 'assistant', content: reply });
+
       } catch {
         showTyping(false);
         setStatus('', 'Connection error — please try again');
@@ -792,6 +822,7 @@
       textInput.style.height = Math.min(textInput.scrollHeight, 120) + 'px';
     });
 
+    /* question chips */
     document.querySelectorAll('.q-chip').forEach(chip => {
       chip.addEventListener('click', () => {
         if (currentMode === 'audio') switchMode('text');
@@ -799,12 +830,166 @@
       });
     });
 
-    /* ── Voice mode — handled by ElevenLabs widget ── */
-    function stopVoice() {} // widget handles its own cleanup
+    /* ── Voice mode ── */
+    async function startVoice() {
+      try {
+        await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 16000
+          },
+          video: false
+        });
+      } catch (err) {
+        const msg = err.name === 'NotAllowedError'
+          ? 'Microphone access denied — please allow mic access in your browser settings'
+          : err.name === 'NotFoundError'
+          ? 'No microphone found on this device'
+          : 'Microphone unavailable — please try again';
+        setStatus('', msg);
+        return;
+      }
+      _initVoice();
+    }
 
-    voiceBtn && voiceBtn.addEventListener && voiceBtn.addEventListener('click', () => {});
+    async function _initVoice() {
+      voiceActive = true;
+      voiceBtn.classList.add('active');
+      micIcon.style.display  = 'none';
+      stopIcon.style.display = 'block';
+      waveform.classList.add('visible');
+      voiceStatus.textContent = 'Connecting…';
+      setStatus('thinking', 'Connecting…');
 
-        switchMode('text');
+      const ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
+      const queue = [];
+      let playing = false;
+
+      // Android-safe AudioContext — don't force sampleRate, let device decide
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
+        video: false
+      });
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // Use ScriptProcessor for broad mobile compatibility (4096 buffer)
+      const processor = audioCtx.createScriptProcessor(4096, 1, 1);
+      source.connect(processor);
+      processor.connect(audioCtx.destination);
+
+      // Mobile-safe base64 encoding — avoids spread overflow on large arrays
+      function toBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let bin = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        return btoa(bin);
+      }
+
+      processor.onaudioprocess = (e) => {
+        if (ws.readyState !== WebSocket.OPEN) return;
+        const f = e.inputBuffer.getChannelData(0);
+        const p = new Int16Array(f.length);
+        for (let i = 0; i < f.length; i++) p[i] = Math.max(-32768, Math.min(32767, f[i] * 32768));
+        ws.send(JSON.stringify({ user_audio_chunk: toBase64(p.buffer) }));
+      };
+
+      async function playNext() {
+        if (playing || !queue.length) return;
+        playing = true;
+        // iOS requires AudioContext resume before playing
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
+        const b64 = queue.shift();
+        const bin = atob(b64);
+        const buf = new Uint8Array(bin.length);
+        for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
+        try {
+          const decoded = await audioCtx.decodeAudioData(buf.buffer);
+          const s = audioCtx.createBufferSource();
+          s.buffer = decoded; s.connect(audioCtx.destination);
+          s.onended = () => { playing = false; playNext(); };
+          s.start();
+        } catch { playing = false; playNext(); }
+      }
+
+      ws.onopen = () => {
+        ws.send(JSON.stringify({ type: 'conversation_initiation_client_data' }));
+        voiceStatus.textContent = 'Listening…';
+        setStatus('ready', 'Listening');
+        waveform.classList.add('active');
+      };
+
+      ws.onmessage = (ev) => {
+        let d; try { d = JSON.parse(ev.data); } catch { return; }
+        switch (d.type) {
+          case 'user_transcript':
+            voiceStatus.textContent = d.user_transcription_event?.user_transcript || '';
+            setStatus('ready', 'Listening');
+            lunaAvatar.classList.remove('speaking');
+            break;
+          case 'agent_response':
+            const t = d.agent_response_event?.agent_response || '';
+            voiceStatus.textContent = t.length > 55 ? t.slice(0,52)+'…' : t;
+            setStatus('speaking', 'Luna is speaking');
+            lunaAvatar.classList.add('speaking');
+            break;
+          case 'audio':
+            if (d.audio_event?.audio_base_64) { queue.push(d.audio_event.audio_base_64); playNext(); }
+            break;
+          case 'interruption':
+            queue.length = 0; playing = false;
+            lunaAvatar.classList.remove('speaking');
+            break;
+          case 'ping':
+            setTimeout(() => {
+              if (ws.readyState === WebSocket.OPEN)
+                ws.send(JSON.stringify({ type:'pong', event_id: d.ping_event.event_id }));
+            }, d.ping_event.ping_ms ?? 0);
+            break;
+        }
+      };
+
+      function cleanup() {
+        voiceActive = false;
+        voiceBtn.classList.remove('active');
+        micIcon.style.display  = 'block';
+        stopIcon.style.display = 'none';
+        waveform.classList.remove('active', 'visible');
+        lunaAvatar.classList.remove('speaking');
+        voiceStatus.textContent = 'Tap to speak';
+        setStatus('ready', 'Ready');
+        try { processor.disconnect(); source.disconnect(); } catch {}
+        try { stream.getTracks().forEach(t => t.stop()); } catch {}
+      }
+
+      ws.onerror = () => { setStatus('', 'Connection error'); cleanup(); };
+      ws.onclose = () => { if (voiceActive) cleanup(); };
+      voiceConv = { ws, cleanup };
+    }
+
+    function stopVoice() { voiceConv?.ws?.close(); voiceConv?.cleanup?.(); voiceConv = null; }
+
+    voiceBtn.addEventListener('click', async () => {
+      if (voiceActive) { stopVoice(); return; }
+      const perm = await navigator.permissions.query({ name:'microphone' }).catch(() => null);
+      if (perm?.state === 'denied') { setStatus('', 'Microphone blocked — check browser settings'); return; }
+      if (perm?.state !== 'granted') { micOverlay.classList.add('visible'); return; }
+      startVoice();
+    });
+
+    micAllowBtn.addEventListener('click', () => {
+      micOverlay.classList.remove('visible');
+      startVoice();
+    });
+
+    switchMode('text');
   </script>
 
 </body>
