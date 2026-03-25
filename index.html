@@ -715,7 +715,7 @@
       textInputRow.style.display = isText ? 'flex'  : 'none';
       voicePanel.classList.toggle('visible', !isText);
       if (!isText && voiceActive) stopVoice();
-      setStatus('ready', isText ? 'Ready' : 'Tap the mic to start');
+      setStatus('ready', isText ? 'Ready' : 'Tap mic to start');
     }
 
     textModeBtn.addEventListener('click',  () => switchMode('text'));
@@ -976,15 +976,31 @@
         try { stream.getTracks().forEach(t => t.stop()); } catch {}
       }
 
+      function stopPlayback() {
+        queue.length = 0;
+        playing = false;
+        lunaAvatar.classList.remove('speaking');
+        setStatus('ready', 'Listening');
+        voiceStatus.textContent = 'Listening…';
+      }
+
       ws.onerror = () => { setStatus('', 'Connection error'); cleanup(); };
       ws.onclose = () => { if (voiceActive) cleanup(); };
-      voiceConv = { ws, cleanup };
+      voiceConv = { ws, cleanup, stopPlayback };
     }
 
     function stopVoice() { voiceConv?.ws?.close(); voiceConv?.cleanup?.(); voiceConv = null; }
 
     voiceBtn.addEventListener('click', async () => {
-      if (voiceActive) { stopVoice(); return; }
+      if (voiceActive) {
+        // If Luna is speaking, send interruption then continue listening
+        if (voiceConv && voiceConv.ws && voiceConv.ws.readyState === WebSocket.OPEN) {
+          // Clear audio queue and stop playback immediately
+          if (voiceConv.stopPlayback) voiceConv.stopPlayback();
+        }
+        // Don't stop the session — just interrupt and keep listening
+        return;
+      }
       const perm = await navigator.permissions.query({ name:'microphone' }).catch(() => null);
       if (perm?.state === 'denied') { setStatus('', 'Microphone blocked — check browser settings'); return; }
       if (perm?.state !== 'granted') { micOverlay.classList.add('visible'); return; }
