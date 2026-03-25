@@ -832,8 +832,24 @@
 
     /* ── Voice mode ── */
     async function startVoice() {
-      try { await navigator.mediaDevices.getUserMedia({ audio: true }); }
-      catch { setStatus('', 'Microphone access denied'); return; }
+      try {
+        await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 16000
+          },
+          video: false
+        });
+      } catch (err) {
+        const msg = err.name === 'NotAllowedError'
+          ? 'Microphone access denied — please allow mic access in your browser settings'
+          : err.name === 'NotFoundError'
+          ? 'No microphone found on this device'
+          : 'Microphone unavailable — please try again';
+        setStatus('', msg);
+        return;
+      }
       _initVoice();
     }
 
@@ -846,30 +862,53 @@
       voiceStatus.textContent = 'Connecting…';
       setStatus('thinking', 'Connecting…');
 
-      const ws       = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
-      const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-      const queue    = [];
-      let   playing  = false;
+      const ws = new WebSocket(`wss://api.elevenlabs.io/v1/convai/conversation?agent_id=${AGENT_ID}`);
+      const queue = [];
+      let playing = false;
 
-      const stream    = await navigator.mediaDevices.getUserMedia({ audio: true });
-      const source    = audioCtx.createMediaStreamSource(stream);
+      // Android-safe AudioContext — don't force sampleRate, let device decide
+      const AudioCtx = window.AudioContext || window.webkitAudioContext;
+      const audioCtx = new AudioCtx();
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
+        video: false
+      });
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // Use ScriptProcessor for broad mobile compatibility (4096 buffer)
       const processor = audioCtx.createScriptProcessor(4096, 1, 1);
       source.connect(processor);
       processor.connect(audioCtx.destination);
+
+      // Mobile-safe base64 encoding — avoids spread overflow on large arrays
+      function toBase64(buffer) {
+        const bytes = new Uint8Array(buffer);
+        let bin = '';
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
+        }
+        return btoa(bin);
+      }
 
       processor.onaudioprocess = (e) => {
         if (ws.readyState !== WebSocket.OPEN) return;
         const f = e.inputBuffer.getChannelData(0);
         const p = new Int16Array(f.length);
         for (let i = 0; i < f.length; i++) p[i] = Math.max(-32768, Math.min(32767, f[i] * 32768));
-        ws.send(JSON.stringify({ user_audio_chunk: btoa(String.fromCharCode(...new Uint8Array(p.buffer))) }));
+        ws.send(JSON.stringify({ user_audio_chunk: toBase64(p.buffer) }));
       };
 
       async function playNext() {
         if (playing || !queue.length) return;
         playing = true;
+        // iOS requires AudioContext resume before playing
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
         const b64 = queue.shift();
-        const bin = atob(b64); const buf = new Uint8Array(bin.length);
+        const bin = atob(b64);
+        const buf = new Uint8Array(bin.length);
         for (let i = 0; i < bin.length; i++) buf[i] = bin.charCodeAt(i);
         try {
           const decoded = await audioCtx.decodeAudioData(buf.buffer);
