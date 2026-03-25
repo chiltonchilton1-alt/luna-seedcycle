@@ -508,8 +508,7 @@
       .chat-messages { max-height: 200px; }
     }
   </style>
-  <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
-  <script src="https://unpkg.com/@elevenlabs/convai-widget-embed" async type="text/javascript"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@11labs/client@0.0.7/dist/index.umd.js"></script>
 </head>
 <body>
 
@@ -611,23 +610,24 @@
 
       <!-- Voice panel -->
       <div class="voice-panel" id="voicePanel">
-        <div class="widget-wrap">
-          <elevenlabs-convai
-            agent-id="agent_5001kehdf6nmeqyr7nf4ga7k3d91"
-            variant="expanded"
-            avatar-orb-color-1="#C4909A"
-            avatar-orb-color-2="#D4962A"
-            action-text="Speak with Luna"
-            start-call-text="Start talking"
-            end-call-text="End call"
-            listening-text="Listening…"
-            speaking-text="Luna is speaking…"
-          ></elevenlabs-convai>
+        <div class="waveform" id="waveform">
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
+          <div class="waveform-bar"></div><div class="waveform-bar"></div>
         </div>
-      <!-- Status -->
-      <div class="status-pill ready" id="statusPill">
-        <span class="status-dot"></span>
-        <span id="statusText">Ready</span>
+        <button class="voice-btn" id="voiceBtn">
+          <svg id="micIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+            <line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/>
+          </svg>
+          <svg id="stopIcon" viewBox="0 0 24 24" fill="currentColor" style="display:none">
+            <rect x="6" y="6" width="12" height="12" rx="2"/>
+          </svg>
+        </button>
+        <span class="voice-status" id="voiceStatus">Tap to speak</span>
       </div>
 
     </div>
@@ -823,9 +823,105 @@
       });
     });
 
-    /* Voice handled by ElevenLabs widget */
+    /* ── Voice mode — ElevenLabs @11labs/client SDK ── */
+    let conversation = null;
 
-        switchMode('text');
+    async function startVoice() {
+      try {
+        await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+      } catch (err) {
+        setStatus('', err.name === 'NotAllowedError'
+          ? 'Microphone access denied — check browser settings'
+          : 'Microphone unavailable — please try again');
+        return;
+      }
+
+      voiceActive = true;
+      voiceBtn.classList.add('active');
+      micIcon.style.display  = 'none';
+      stopIcon.style.display = 'block';
+      waveform.classList.add('visible');
+      voiceStatus.textContent = 'Connecting…';
+      setStatus('thinking', 'Connecting…');
+
+      try {
+        // Use ElevenLabs client SDK — handles all audio, VAD, and interruption
+        const EL = window.ElevenLabsClient || window['@11labs/client'];
+        if (!EL || !EL.Conversation) {
+          throw new Error('ElevenLabs SDK not loaded');
+        }
+
+        conversation = await EL.Conversation.startSession({
+          agentId: AGENT_ID,
+          onConnect: () => {
+            voiceStatus.textContent = 'Listening…';
+            setStatus('ready', 'Listening');
+            waveform.classList.add('active');
+          },
+          onDisconnect: () => {
+            cleanupVoice();
+          },
+          onError: (error) => {
+            console.error('Voice error:', error);
+            setStatus('', 'Connection error — please try again');
+            cleanupVoice();
+          },
+          onModeChange: ({ mode }) => {
+            if (mode === 'speaking') {
+              setStatus('speaking', 'Luna is speaking');
+              lunaAvatar.classList.add('speaking');
+              voiceStatus.textContent = 'Luna is speaking…';
+              waveform.classList.add('active');
+            } else {
+              setStatus('ready', 'Listening');
+              lunaAvatar.classList.remove('speaking');
+              voiceStatus.textContent = 'Listening…';
+            }
+          },
+          onMessage: ({ message, source }) => {
+            if (source === 'ai' && message) {
+              const t = message;
+              voiceStatus.textContent = t.length > 55 ? t.slice(0,52)+'…' : t;
+            }
+          }
+        });
+      } catch (err) {
+        console.error('Voice start error:', err);
+        setStatus('', 'Could not connect — please try again');
+        cleanupVoice();
+      }
+    }
+
+    function cleanupVoice() {
+      voiceActive = false;
+      conversation = null;
+      voiceBtn.classList.remove('active');
+      micIcon.style.display  = 'block';
+      stopIcon.style.display = 'none';
+      waveform.classList.remove('active', 'visible');
+      lunaAvatar.classList.remove('speaking');
+      voiceStatus.textContent = 'Tap to speak';
+      setStatus('ready', 'Ready');
+    }
+
+    function stopVoice() {
+      if (conversation) { try { conversation.endSession(); } catch(e) {} }
+      cleanupVoice();
+    }
+    voiceBtn.addEventListener('click', async () => {
+      if (voiceActive) { stopVoice(); return; }
+      const perm = await navigator.permissions.query({ name:'microphone' }).catch(() => null);
+      if (perm?.state === 'denied') { setStatus('', 'Microphone blocked — check browser settings'); return; }
+      if (perm?.state !== 'granted') { micOverlay.classList.add('visible'); return; }
+      startVoice();
+    });
+
+    micAllowBtn.addEventListener('click', () => {
+      micOverlay.classList.remove('visible');
+      startVoice();
+    });
+
+    switchMode('text');
   </script>
 
 </body>
