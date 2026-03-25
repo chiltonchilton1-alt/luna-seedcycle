@@ -831,17 +831,29 @@
     });
 
     /* ── Voice mode ── */
-    let voiceConv   = null;
-
     async function startVoice() {
-      let stream;
       try {
-        stream = await navigator.mediaDevices.getUserMedia({ audio: true, video: false });
+        await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            sampleRate: 16000
+          },
+          video: false
+        });
       } catch (err) {
-        setStatus('', 'Microphone access denied — check browser settings');
+        const msg = err.name === 'NotAllowedError'
+          ? 'Microphone access denied — please allow mic access in your browser settings'
+          : err.name === 'NotFoundError'
+          ? 'No microphone found on this device'
+          : 'Microphone unavailable — please try again';
+        setStatus('', msg);
         return;
       }
+      _initVoice();
+    }
 
+    async function _initVoice() {
       voiceActive = true;
       voiceBtn.classList.add('active');
       micIcon.style.display  = 'none';
@@ -854,18 +866,29 @@
       const queue = [];
       let playing = false;
 
+      // Android-safe AudioContext — don't force sampleRate, let device decide
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const audioCtx = new AudioCtx();
-      const source    = audioCtx.createMediaStreamSource(stream);
+      if (audioCtx.state === 'suspended') await audioCtx.resume();
+
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: { echoCancellation: true, noiseSuppression: true, sampleRate: 16000 },
+        video: false
+      });
+      const source = audioCtx.createMediaStreamSource(stream);
+
+      // Use ScriptProcessor for broad mobile compatibility (4096 buffer)
       const processor = audioCtx.createScriptProcessor(4096, 1, 1);
       source.connect(processor);
       processor.connect(audioCtx.destination);
 
+      // Mobile-safe base64 encoding — avoids spread overflow on large arrays
       function toBase64(buffer) {
         const bytes = new Uint8Array(buffer);
         let bin = '';
-        for (let i = 0; i < bytes.length; i += 8192) {
-          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+        const chunk = 8192;
+        for (let i = 0; i < bytes.length; i += chunk) {
+          bin += String.fromCharCode.apply(null, bytes.subarray(i, i + chunk));
         }
         return btoa(bin);
       }
@@ -881,7 +904,8 @@
       async function playNext() {
         if (playing || !queue.length) return;
         playing = true;
-        if (audioCtx.state === 'suspended') { try { await audioCtx.resume(); } catch {} }
+        // iOS requires AudioContext resume before playing
+        if (audioCtx.state === 'suspended') await audioCtx.resume();
         const b64 = queue.shift();
         const bin = atob(b64);
         const buf = new Uint8Array(bin.length);
@@ -943,7 +967,6 @@
         setStatus('ready', 'Ready');
         try { processor.disconnect(); source.disconnect(); } catch {}
         try { stream.getTracks().forEach(t => t.stop()); } catch {}
-        try { audioCtx.close(); } catch {}
       }
 
       ws.onerror = () => { setStatus('', 'Connection error'); cleanup(); };
@@ -955,6 +978,9 @@
 
     voiceBtn.addEventListener('click', async () => {
       if (voiceActive) { stopVoice(); return; }
+      const perm = await navigator.permissions.query({ name:'microphone' }).catch(() => null);
+      if (perm?.state === 'denied') { setStatus('', 'Microphone blocked — check browser settings'); return; }
+      if (perm?.state !== 'granted') { micOverlay.classList.add('visible'); return; }
       startVoice();
     });
 
