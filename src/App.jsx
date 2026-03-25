@@ -53,14 +53,38 @@ export default function App() {
       setStatus({ state: '', text: 'Connection error' })
     },
     onMessage: ({ message, source }) => {
-      if (source === 'ai' && message) {
-        setVoiceStatus(message)
+      if (message) {
+        resetInactivityTimer()
+        if (source === 'ai') setVoiceStatus(message)
       }
     },
   })
 
   const voiceActive  = conversation.status === 'connected'
   const lunaSpeaking = conversation.isSpeaking
+  const inactivityTimer = useRef(null)
+
+  // Reset the 2-minute inactivity timer whenever activity is detected
+  const resetInactivityTimer = useCallback(async () => {
+    if (inactivityTimer.current) clearTimeout(inactivityTimer.current)
+    inactivityTimer.current = setTimeout(async () => {
+      await conversation.endSession()
+      setVoiceStatus('Call ended after 2 minutes of silence')
+      setStatus({ state: 'ready', text: 'Ready' })
+    }, 2 * 60 * 1000)
+  }, [conversation])
+
+  // Start timer when call connects, clear it when call ends
+  useEffect(() => {
+    if (voiceActive) {
+      resetInactivityTimer()
+    } else {
+      if (inactivityTimer.current) {
+        clearTimeout(inactivityTimer.current)
+        inactivityTimer.current = null
+      }
+    }
+  }, [voiceActive])
 
   useEffect(() => {
     if (lunaSpeaking) {
