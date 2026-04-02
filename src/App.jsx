@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useConversation } from '@11labs/react'
+import { useConversation } from '@elevenlabs/react'
 import logoSvg from '../logo.svg'
 
 const AGENT_ID = 'agent_5001kehdf6nmeqyr7nf4ga7k3d91'
@@ -144,7 +144,7 @@ export default function App() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({ agentId: AGENT_ID })
+      await conversation.startSession({ agentId: AGENT_ID, connectionType: 'webrtc' })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
@@ -445,4 +445,3 @@ const styles = {
   footer: { padding:'12px 0 24px', textAlign:'center', animation:'fadeUp 0.6s 0.40s ease both' },
   footerNote: { fontSize:'0.64rem', color:'var(--light)', fontWeight:400, lineHeight:1.5 },
 }
-
