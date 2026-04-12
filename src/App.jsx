@@ -38,6 +38,9 @@ export default function App() {
   const chatEndRef = useRef(null)
   const inputRef   = useRef(null)
 
+  const isEmbed = new URLSearchParams(window.location.search).get('embed') === 'true'
+
+  // postMessage listener — registers immediately on mount
   useEffect(() => {
     const handleMessage = (event) => {
       // During development, accept messages from any Vercel preview or localhost
@@ -52,6 +55,18 @@ export default function App() {
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
   }, [])
+
+  // Fallback: if in embed mode and no context after 2s, notify parent we're ready
+  useEffect(() => {
+    if (!isEmbed) return
+    const timer = setTimeout(() => {
+      if (!haloContext) {
+        console.log('Luna: no context received after 2s, sending LUNA_READY to parent')
+        window.parent.postMessage({ type: 'LUNA_READY' }, '*')
+      }
+    }, 2000)
+    return () => clearTimeout(timer)
+  }, [isEmbed, haloContext])
 
   // ── ElevenLabs voice hook — handles ALL audio natively
   const conversation = useConversation({
@@ -198,8 +213,6 @@ export default function App() {
     setStatus({ state: 'ready', text: m === 'chat' ? 'Ready' : 'Tap the mic to start' })
   }
 
-  const isEmbed = new URLSearchParams(window.location.search).get('embed') === 'true'
-
   return (
     <>
       {/* Background */}
@@ -272,6 +285,15 @@ export default function App() {
           {mode === 'chat' && (
             <>
               <div style={{ ...styles.chatMessages, ...(isEmbed ? { flex: 1, maxHeight: 'none', overflowY: 'auto' } : {}) }}>
+                {/* Debug indicator — temporary, remove once bridge is confirmed */}
+                {isEmbed && messages.length === 0 && (
+                  <div style={{ textAlign: 'center', padding: '6px 0 0', fontSize: '0.6rem', color: 'var(--light)', letterSpacing: '0.08em' }}>
+                    {haloContext
+                      ? `Context received: Day ${haloContext.cycleDay}`
+                      : 'Waiting for Halo context…'}
+                  </div>
+                )}
+
                 {/* Embed welcome card — shown when no messages yet */}
                 {isEmbed && messages.length === 0 && (
                   <div style={{
@@ -281,30 +303,39 @@ export default function App() {
                     justifyContent: 'center',
                     flex: 1,
                     textAlign: 'center',
-                    padding: '32px 24px',
-                    gap: 16
+                    padding: '24px 24px 32px',
+                    gap: 14
                   }}>
-                    <div style={{
-                      width: 56,
-                      height: 56,
-                      borderRadius: '50%',
-                      background: 'linear-gradient(135deg, #c8a2a8, #9b5e6a)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      boxShadow: '0 4px 20px rgba(155, 94, 106, 0.25)'
-                    }}>
-                      <svg viewBox="30 21 323 307" style={{ width: 30, height: 30 }}>
-                        <path fill="white" fillOpacity="0.92" d={INFINITY_PATH} />
-                      </svg>
+                    {/* Avatar with double-ring halo matching standalone */}
+                    <div style={{ position: 'relative', width: 80, height: 80, marginBottom: 4 }}>
+                      <div style={{
+                        position: 'absolute', inset: -10, borderRadius: '50%',
+                        border: '1.5px solid rgba(155,94,106,0.18)',
+                        animation: 'spin-slow 24s linear infinite'
+                      }} />
+                      <div style={{
+                        position: 'absolute', inset: -3, borderRadius: '50%',
+                        border: '1px solid rgba(155,94,106,0.10)'
+                      }} />
+                      <div style={{
+                        width: 80, height: 80, borderRadius: '50%',
+                        background: 'linear-gradient(145deg, var(--rose-pale) 0%, var(--rose-light) 52%, var(--rose) 100%)',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        boxShadow: '0 12px 40px rgba(155,94,106,0.22), 0 2px 8px rgba(0,0,0,0.05)',
+                        overflow: 'hidden'
+                      }}>
+                        <svg viewBox="30 21 323 307" style={{ width: 42, height: 42 }}>
+                          <path fill="white" fillOpacity="0.92" d={INFINITY_PATH} />
+                        </svg>
+                      </div>
                     </div>
 
                     {haloContext ? (
                       <>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#4a3540', fontFamily: "'Playfair Display', serif" }}>
+                        <div style={{ fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', fontFamily: "'Playfair Display', serif" }}>
                           Hi there
                         </div>
-                        <div style={{ fontSize: '0.82rem', color: '#8a7a80', lineHeight: 1.6, maxWidth: 260 }}>
+                        <div style={{ fontSize: '0.84rem', color: 'var(--mid)', lineHeight: 1.65, maxWidth: 260, fontFamily: "'Raleway', sans-serif", fontWeight: 400 }}>
                           {"You're on Day " + (haloContext.cycleDay || '—') + " of your " + (haloContext.phase || 'cycle') + ". "}
                           {haloContext.symptoms && haloContext.symptoms.length > 0
                             ? "You've logged " + haloContext.symptoms.join(' and ').toLowerCase() + " today. "
@@ -314,10 +345,10 @@ export default function App() {
                       </>
                     ) : (
                       <>
-                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#4a3540', fontFamily: "'Playfair Display', serif" }}>
-                          Chat with Luna
+                        <div style={{ fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', fontFamily: "'Playfair Display', serif" }}>
+                          Chat with <em style={{ fontStyle: 'italic', color: 'var(--rose)' }}>Luna</em>
                         </div>
-                        <div style={{ fontSize: '0.82rem', color: '#8a7a80', lineHeight: 1.6, maxWidth: 260 }}>
+                        <div style={{ fontSize: '0.84rem', color: 'var(--mid)', lineHeight: 1.65, maxWidth: 260, fontFamily: "'Raleway', sans-serif", fontWeight: 400 }}>
                           Your AI cycle guide. Ask me anything about seed cycling, your phase, or how you're feeling.
                         </div>
                       </>
