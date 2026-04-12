@@ -180,13 +180,12 @@ export default function App() {
       await navigator.mediaDevices.getUserMedia({ audio: true })
       await conversation.startSession({
         agentId: AGENT_ID,
-        dynamicVariables: haloContext ? {
-          user_phase: haloContext.phase || 'Unknown',
-          cycle_day: String(haloContext.cycleDay || 'Unknown'),
-          symptoms: (haloContext.symptoms || []).join(', ') || 'None',
-          mood: String(haloContext.mood || 'Not logged'),
-          energy: String(haloContext.energy || 'Not logged'),
-          streak: String(haloContext.streak || 0)
+        overrides: haloContext ? {
+          agent: {
+            prompt: {
+              prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
+            }
+          }
         } : {}
       })
     } catch (err) {
@@ -285,15 +284,6 @@ export default function App() {
           {mode === 'chat' && (
             <>
               <div style={{ ...styles.chatMessages, ...(isEmbed ? { flex: 1, maxHeight: 'none', overflowY: 'auto' } : {}) }}>
-                {/* Debug indicator — temporary, remove once bridge is confirmed */}
-                {isEmbed && messages.length === 0 && (
-                  <div style={{ textAlign: 'center', padding: '6px 0 0', fontSize: '0.6rem', color: 'var(--light)', letterSpacing: '0.08em' }}>
-                    {haloContext
-                      ? `Context received: Day ${haloContext.cycleDay}`
-                      : 'Waiting for Halo context…'}
-                  </div>
-                )}
-
                 {/* Embed welcome card — shown when no messages yet */}
                 {isEmbed && messages.length === 0 && (
                   <div style={{
@@ -330,28 +320,34 @@ export default function App() {
                       </div>
                     </div>
 
-                    {haloContext ? (
-                      <>
-                        <div style={{ fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', fontFamily: "'Playfair Display', serif" }}>
-                          Hi there
-                        </div>
-                        <div style={{ fontSize: '0.84rem', color: 'var(--mid)', lineHeight: 1.65, maxWidth: 260, fontFamily: "'Raleway', sans-serif", fontWeight: 400 }}>
-                          {"You're on Day " + (haloContext.cycleDay || '—') + " of your " + (haloContext.phase || 'cycle') + ". "}
-                          {haloContext.symptoms && haloContext.symptoms.length > 0
-                            ? "You've logged " + haloContext.symptoms.join(' and ').toLowerCase() + " today. "
-                            : ''}
-                          Ask me anything about your cycle.
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <div style={{ fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', fontFamily: "'Playfair Display', serif" }}>
-                          Chat with <em style={{ fontStyle: 'italic', color: 'var(--rose)' }}>Luna</em>
-                        </div>
-                        <div style={{ fontSize: '0.84rem', color: 'var(--mid)', lineHeight: 1.65, maxWidth: 260, fontFamily: "'Raleway', sans-serif", fontWeight: 400 }}>
-                          Your AI cycle guide. Ask me anything about seed cycling, your phase, or how you're feeling.
-                        </div>
-                      </>
+                    {/* Title and subtitle — always shown */}
+                    <div style={{ fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', fontFamily: "'Playfair Display', serif" }}>
+                      Chat with <em style={{ fontStyle: 'italic', color: 'var(--rose)' }}>Luna</em>
+                    </div>
+                    <div style={{ fontSize: '0.84rem', color: 'var(--mid)', lineHeight: 1.65, maxWidth: 260, fontFamily: "'Raleway', sans-serif", fontWeight: 400 }}>
+                      Your AI cycle guide
+                    </div>
+
+                    {/* Personalised context card — only shown when haloContext is received */}
+                    {haloContext && (
+                      <div style={{
+                        background: 'rgba(155,94,106,0.06)',
+                        borderRadius: 12,
+                        padding: '14px 18px',
+                        maxWidth: 280,
+                        fontSize: '0.82rem',
+                        color: 'var(--mid)',
+                        lineHeight: 1.65,
+                        fontFamily: "'Raleway', sans-serif",
+                        fontWeight: 400,
+                        textAlign: 'left'
+                      }}>
+                        {"You're on Day " + (haloContext.cycleDay || '—') + " of your " + (haloContext.phase || 'cycle') + ". "}
+                        {haloContext.symptoms && haloContext.symptoms.length > 0
+                          ? "You've logged " + haloContext.symptoms.join(' and ').toLowerCase() + " today. "
+                          : ''}
+                        Ask me anything about your cycle.
+                      </div>
                     )}
                   </div>
                 )}
