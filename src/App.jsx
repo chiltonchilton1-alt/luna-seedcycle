@@ -34,8 +34,26 @@ export default function App() {
   const [status, setStatus]       = useState({ state: 'ready', text: 'Ready' })
   const [chipsHidden, setChipsHidden] = useState(false)
   const [voiceStatus, setVoiceStatus] = useState('Tap to speak')
+  const [haloContext, setHaloContext] = useState(null)
   const chatEndRef = useRef(null)
   const inputRef   = useRef(null)
+
+  useEffect(() => {
+    const handleMessage = (event) => {
+      // Accept messages from Halo app origins
+      const allowedOrigins = [
+        'https://halo-of-health.vercel.app',
+        'http://localhost:3000',
+        'http://localhost:5173'
+      ]
+      if (!allowedOrigins.includes(event.origin)) return
+      if (event.data && event.data.type === 'HALO_CONTEXT') {
+        setHaloContext(event.data.payload)
+      }
+    }
+    window.addEventListener('message', handleMessage)
+    return () => window.removeEventListener('message', handleMessage)
+  }, [])
 
   // ── ElevenLabs voice hook — handles ALL audio natively
   const conversation = useConversation({
@@ -115,7 +133,10 @@ export default function App() {
       const res  = await fetch('/api/chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: newHistory }),
+        body: JSON.stringify({
+          messages: newHistory,
+          haloContext: haloContext || null
+        }),
       })
       const data = await res.json()
       const reply = data.reply || "I'm sorry, something went wrong. Please try again."
@@ -128,7 +149,7 @@ export default function App() {
       setStatus({ state: '', text: 'Connection error' })
       addMsg('luna', 'Sorry, something went wrong. Please check your connection and try again.')
     }
-  }, [history, addMsg])
+  }, [history, addMsg, haloContext])
 
   const handleSend = () => {
     const val = input.trim()
@@ -144,7 +165,17 @@ export default function App() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({ agentId: AGENT_ID })
+      await conversation.startSession({
+        agentId: AGENT_ID,
+        dynamicVariables: haloContext ? {
+          user_phase: haloContext.phase || 'Unknown',
+          cycle_day: String(haloContext.cycleDay || 'Unknown'),
+          symptoms: (haloContext.symptoms || []).join(', ') || 'None',
+          mood: String(haloContext.mood || 'Not logged'),
+          energy: String(haloContext.energy || 'Not logged'),
+          streak: String(haloContext.streak || 0)
+        } : {}
+      })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'

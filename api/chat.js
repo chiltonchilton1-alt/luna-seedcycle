@@ -80,6 +80,26 @@ module.exports = async function handler(req, res) {
     return res.status(400).json({ error: 'Messages array required' });
   }
 
+  const haloContext = body && body.haloContext;
+  let systemPrompt = SYSTEM_PROMPT;
+  if (haloContext) {
+    const contextBlock = `
+
+CURRENT USER CYCLE DATA FROM HALO APP:
+Phase: ${haloContext.phase || 'Unknown'}
+Cycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}
+Current Symptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}
+Mood Today: ${haloContext.mood || 'Not logged'}/10
+Energy Today: ${haloContext.energy || 'Not logged'}/10
+Sleep Last Night: ${haloContext.sleep || 'Not logged'}
+Seeds Taken Today: ${haloContext.seedsTaken ? 'Yes' : 'No'}
+Streak: ${haloContext.streak || 0} days logged
+Last 7 Days Average Mood: ${haloContext.avgMood7d || 'Not enough data'}
+
+Use this data to personalise every response. Reference specific days, symptoms, and patterns when relevant. Make the user feel seen and understood based on what they have logged.`;
+    systemPrompt = SYSTEM_PROMPT + contextBlock;
+  }
+
   try {
     const response = await fetch('https://api.anthropic.com/v1/messages', {
       method: 'POST',
@@ -91,7 +111,7 @@ module.exports = async function handler(req, res) {
       body: JSON.stringify({
         model: 'claude-haiku-4-5',
         max_tokens: 600,
-        system: SYSTEM_PROMPT,
+        system: systemPrompt,
         messages: messages
       })
     });
