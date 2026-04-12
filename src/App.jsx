@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useConversation } from '@elevenlabs/react'
+import { useConversation, ConversationProvider } from '@elevenlabs/react'
 import logoSvg from '../logo.svg'
 
 const AGENT_ID = 'agent_5001kehdf6nmeqyr7nf4ga7k3d91'
@@ -25,7 +25,7 @@ function formatLunaText(text) {
   }).join('')
 }
 
-export default function App() {
+function AppInner() {
   const [mode, setMode]           = useState('chat')
   const [messages, setMessages]   = useState([])
   const [history, setHistory]     = useState([])
@@ -68,28 +68,8 @@ export default function App() {
     return () => clearTimeout(timer)
   }, [isEmbed, haloContext])
 
-  // ── ElevenLabs voice hook — handles ALL audio natively
-  const conversation = useConversation({
-    onConnect: () => {
-      setVoiceStatus('Listening…')
-      setStatus({ state: 'ready', text: 'Listening' })
-    },
-    onDisconnect: () => {
-      setVoiceStatus('')
-      setStatus({ state: 'ready', text: 'Ready' })
-    },
-    onError: (err) => {
-      console.error('Voice error:', err)
-      setVoiceStatus('Connection error — try again')
-      setStatus({ state: '', text: 'Connection error' })
-    },
-    onMessage: ({ message, source }) => {
-      if (message) {
-        resetInactivityTimer()
-        if (source === 'ai') setVoiceStatus(message)
-      }
-    },
-  })
+  // ── ElevenLabs voice hook — callbacks go in startSession in v1.1.0
+  const conversation = useConversation()
 
   const voiceActive  = conversation.status === 'connected'
   const lunaSpeaking = conversation.isSpeaking
@@ -178,22 +158,34 @@ export default function App() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      try {
-        // Try with overrides (newer SDK versions)
-        await conversation.startSession({
-          agentId: AGENT_ID,
-          overrides: haloContext ? {
-            agent: {
-              prompt: {
-                prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
-              }
+      await conversation.startSession({
+        onConnect: () => {
+          setVoiceStatus('Listening…')
+          setStatus({ state: 'ready', text: 'Listening' })
+        },
+        onDisconnect: () => {
+          setVoiceStatus('')
+          setStatus({ state: 'ready', text: 'Ready' })
+        },
+        onError: (err) => {
+          console.error('Voice error:', err)
+          setVoiceStatus('Connection error — try again')
+          setStatus({ state: '', text: 'Connection error' })
+        },
+        onMessage: ({ message, source }) => {
+          if (message) {
+            resetInactivityTimer()
+            if (source === 'ai') setVoiceStatus(message)
+          }
+        },
+        overrides: haloContext ? {
+          agent: {
+            prompt: {
+              prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
             }
-          } : {}
-        })
-      } catch (overrideErr) {
-        console.warn('Overrides not supported, falling back to plain session:', overrideErr)
-        await conversation.startSession({ agentId: AGENT_ID })
-      }
+          }
+        } : undefined
+      })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
@@ -496,6 +488,14 @@ export default function App() {
         .luna-ring-spin::before { content:''; position:absolute; top:-4px; left:50%; transform:translateX(-50%); width:7px; height:7px; border-radius:50%; background:var(--gold); opacity:0.85; }
       `}</style>
     </>
+  )
+}
+
+export default function App() {
+  return (
+    <ConversationProvider agentId={AGENT_ID}>
+      <AppInner />
+    </ConversationProvider>
   )
 }
 
