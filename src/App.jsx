@@ -40,14 +40,12 @@ export default function App() {
 
   useEffect(() => {
     const handleMessage = (event) => {
-      // Accept messages from Halo app origins
-      const allowedOrigins = [
-        'https://halo-of-health.vercel.app',
-        'http://localhost:3000',
-        'http://localhost:5173'
-      ]
-      if (!allowedOrigins.includes(event.origin)) return
+      // During development, accept messages from any Vercel preview or localhost
+      const origin = event.origin || ''
+      const isAllowed = origin.includes('vercel.app') || origin.includes('localhost') || origin.includes('seedcycle.com')
+      if (!isAllowed) return
       if (event.data && event.data.type === 'HALO_CONTEXT') {
+        console.log('Luna received Halo context:', event.data.payload)
         setHaloContext(event.data.payload)
       }
     }
@@ -212,7 +210,7 @@ export default function App() {
         </div>
       )}
 
-      <div style={{ ...styles.page, ...(isEmbed ? { maxWidth: 'none', padding: '0 16px', height: '100vh', background: 'transparent' } : {}) }}>
+      <div style={{ ...styles.page, ...(isEmbed ? { maxWidth: 'none', padding: '0 16px', height: '100vh', background: 'transparent', display: 'flex', flexDirection: 'column' } : {}) }}>
 
         {/* Header */}
         {!isEmbed && (
@@ -246,7 +244,7 @@ export default function App() {
         )}
 
         {/* Interaction zone */}
-        <div style={styles.zone}>
+        <div style={{ ...styles.zone, ...(isEmbed ? { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' } : {}) }}>
 
           {/* Mode toggle */}
           <div style={styles.toggleWrap}>
@@ -273,7 +271,60 @@ export default function App() {
           {/* Chat mode */}
           {mode === 'chat' && (
             <>
-              <div style={styles.chatMessages}>
+              <div style={{ ...styles.chatMessages, ...(isEmbed ? { flex: 1, maxHeight: 'none', overflowY: 'auto' } : {}) }}>
+                {/* Embed welcome card — shown when no messages yet */}
+                {isEmbed && messages.length === 0 && (
+                  <div style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flex: 1,
+                    textAlign: 'center',
+                    padding: '32px 24px',
+                    gap: 16
+                  }}>
+                    <div style={{
+                      width: 56,
+                      height: 56,
+                      borderRadius: '50%',
+                      background: 'linear-gradient(135deg, #c8a2a8, #9b5e6a)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      boxShadow: '0 4px 20px rgba(155, 94, 106, 0.25)'
+                    }}>
+                      <svg viewBox="30 21 323 307" style={{ width: 30, height: 30 }}>
+                        <path fill="white" fillOpacity="0.92" d={INFINITY_PATH} />
+                      </svg>
+                    </div>
+
+                    {haloContext ? (
+                      <>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#4a3540', fontFamily: "'Playfair Display', serif" }}>
+                          Hi there
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#8a7a80', lineHeight: 1.6, maxWidth: 260 }}>
+                          {"You're on Day " + (haloContext.cycleDay || '—') + " of your " + (haloContext.phase || 'cycle') + ". "}
+                          {haloContext.symptoms && haloContext.symptoms.length > 0
+                            ? "You've logged " + haloContext.symptoms.join(' and ').toLowerCase() + " today. "
+                            : ''}
+                          Ask me anything about your cycle.
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <div style={{ fontSize: '1.1rem', fontWeight: 600, color: '#4a3540', fontFamily: "'Playfair Display', serif" }}>
+                          Chat with Luna
+                        </div>
+                        <div style={{ fontSize: '0.82rem', color: '#8a7a80', lineHeight: 1.6, maxWidth: 260 }}>
+                          Your AI cycle guide. Ask me anything about seed cycling, your phase, or how you're feeling.
+                        </div>
+                      </>
+                    )}
+                  </div>
+                )}
+
                 {messages.map((msg, i) => (
                   <div key={msg.id} ref={i === messages.length - 1 ? chatEndRef : null}
                     style={{ ...styles.msg, ...(msg.role === 'user' ? styles.msgUser : styles.msgLuna) }}>
