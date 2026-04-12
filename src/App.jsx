@@ -178,16 +178,22 @@ export default function App() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({
-        agentId: AGENT_ID,
-        overrides: haloContext ? {
-          agent: {
-            prompt: {
-              prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
+      try {
+        // Try with overrides (newer SDK versions)
+        await conversation.startSession({
+          agentId: AGENT_ID,
+          overrides: haloContext ? {
+            agent: {
+              prompt: {
+                prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
+              }
             }
-          }
-        } : {}
-      })
+          } : {}
+        })
+      } catch (overrideErr) {
+        console.warn('Overrides not supported, falling back to plain session:', overrideErr)
+        await conversation.startSession({ agentId: AGENT_ID })
+      }
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
@@ -259,7 +265,7 @@ export default function App() {
         <div style={{ ...styles.zone, ...(isEmbed ? { flex: 1, display: 'flex', flexDirection: 'column', overflow: 'hidden' } : {}) }}>
 
           {/* Mode toggle */}
-          <div style={styles.toggleWrap}>
+          <div style={{ ...styles.toggleWrap, ...(isEmbed ? { paddingTop: 16 } : {}) }}>
             <div style={styles.toggle}>
               <button style={{ ...styles.modeBtn, ...(mode === 'chat' ? styles.modeBtnActive : {}) }}
                 onClick={() => switchMode('chat')}>
