@@ -200,42 +200,50 @@ export default function App() {
     setStatus({ state: 'ready', text: m === 'chat' ? 'Ready' : 'Tap the mic to start' })
   }
 
+  const isEmbed = new URLSearchParams(window.location.search).get('embed') === 'true'
+
   return (
     <>
       {/* Background */}
-      <div style={styles.bgLayer}>
-        <div style={styles.orb1} /><div style={styles.orb2} /><div style={styles.orb3} />
-        <div style={styles.orb4} /><div style={styles.orb5} /><div style={styles.orb6} />
-      </div>
+      {!isEmbed && (
+        <div style={styles.bgLayer}>
+          <div style={styles.orb1} /><div style={styles.orb2} /><div style={styles.orb3} />
+          <div style={styles.orb4} /><div style={styles.orb5} /><div style={styles.orb6} />
+        </div>
+      )}
 
-      <div style={styles.page}>
+      <div style={{ ...styles.page, ...(isEmbed ? { maxWidth: 'none', padding: '0 16px', height: '100vh', background: 'transparent' } : {}) }}>
 
         {/* Header */}
-        <header style={styles.header}>
-          <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style={styles.logoLink}>
-            <span style={styles.poweredBy}>Powered by</span>
-            <img src={logoSvg} alt="Seed Cycle®" style={styles.logoImg} />
-          </a>
-          <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style={styles.shopLink}>
-            Shop Seed Cycle<sup style={{fontSize:'0.55em',verticalAlign:'super'}}>®</sup> →
-          </a>
-        </header>
+        {!isEmbed && (
+          <header style={styles.header}>
+            <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style={styles.logoLink}>
+              <span style={styles.poweredBy}>Powered by</span>
+              <img src={logoSvg} alt="Seed Cycle®" style={styles.logoImg} />
+            </a>
+            <a href="https://www.seedcycle.com" target="_blank" rel="noopener" style={styles.shopLink}>
+              Shop Seed Cycle<sup style={{fontSize:'0.55em',verticalAlign:'super'}}>®</sup> →
+            </a>
+          </header>
+        )}
 
         {/* Intro */}
-        <div style={styles.intro}>
-          <div style={{ ...styles.avatarWrap, ...(lunaSpeaking || typing ? styles.avatarSpeaking : {}) }}>
-            <div style={styles.lunaRing} />
-            <div style={styles.lunaRingMid} />
-            <div style={styles.lunaCircle}>
-              <svg viewBox="30 21 323 307" style={{ width: 51, height: 51 }}>
-                <path fill="#ffffff" fillOpacity="0.92" d={INFINITY_PATH} />
-              </svg>
+        {!isEmbed && (
+          <div style={styles.intro}>
+            <div style={{ ...styles.avatarWrap, ...(lunaSpeaking || typing ? styles.avatarSpeaking : {}) }}>
+              <div style={styles.lunaRing} />
+              <div style={styles.lunaRingMid} />
+              <div style={styles.lunaCircle}>
+                <svg viewBox="30 21 323 307" style={{ width: 51, height: 51 }}>
+                  <path fill="#ffffff" fillOpacity="0.92" d={INFINITY_PATH} />
+                </svg>
+              </div>
             </div>
+            <p style={styles.eyebrow}>Your Seed Cycle<sup style={{fontSize:'0.6em',verticalAlign:'super'}}>®</sup> Guide</p>
+            <h1 style={styles.title}>Meet <em style={styles.titleEm}>Luna</em></h1>
+            <p style={styles.sub}>Luna can answer your questions about seed cycling.</p>
           </div>
-          <p style={styles.eyebrow}>Your Seed Cycle<sup style={{fontSize:'0.6em',verticalAlign:'super'}}>®</sup> Guide</p>
-          <h1 style={styles.title}>Meet <em style={styles.titleEm}>Luna</em></h1>
-          <p style={styles.sub}>Luna can answer your questions about seed cycling.</p>
-        </div>
+        )}
 
         {/* Interaction zone */}
         <div style={styles.zone}>
@@ -363,7 +371,7 @@ export default function App() {
         </div>
 
         {/* Question chips */}
-        {!chipsHidden && (
+        {!isEmbed && !chipsHidden && (
           <div style={styles.chipsSection}>
             <p style={styles.chipsLabel}>Or ask about seed cycling</p>
             <div style={styles.chipsRow}>
@@ -380,11 +388,13 @@ export default function App() {
         )}
 
         {/* Footer */}
-        <footer style={styles.footer}>
-          <p style={styles.footerNote}>
-            Luna is the AI guide for Seed Cycle<sup style={{fontSize:'0.7em',verticalAlign:'super'}}>®</sup> — here to help you understand seed cycling and our products. General information only, not medical advice. Always consult a healthcare professional for personal health concerns.
-          </p>
-        </footer>
+        {!isEmbed && (
+          <footer style={styles.footer}>
+            <p style={styles.footerNote}>
+              Luna is the AI guide for Seed Cycle<sup style={{fontSize:'0.7em',verticalAlign:'super'}}>®</sup> — here to help you understand seed cycling and our products. General information only, not medical advice. Always consult a healthcare professional for personal health concerns.
+            </p>
+          </footer>
+        )}
 
       </div>
 
