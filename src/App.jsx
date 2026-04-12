@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useConversation } from '@11labs/react'
+import { useConversation } from '@elevenlabs/react'
 import logoSvg from '../logo.svg'
 
 const AGENT_ID = 'agent_5001kehdf6nmeqyr7nf4ga7k3d91'
