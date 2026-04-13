@@ -182,7 +182,7 @@ function AppInner() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({ agentId: AGENT_ID })
+      await conversation.startSession({ agentId: AGENT_ID, connectionType: 'webrtc' })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
