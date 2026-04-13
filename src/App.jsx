@@ -172,10 +172,10 @@ function AppInner() {
           setVoiceStatus('Connection error — try again')
           setStatus({ state: '', text: 'Connection error' })
         },
-        onMessage: ({ message, source }) => {
-          if (message) {
-            resetInactivityTimer()
-            if (source === 'ai') setVoiceStatus(message)
+        onMessage: (event) => {
+          resetInactivityTimer()
+          if (event && event.type === 'agent_response' && event.agent_response) {
+            setVoiceStatus(event.agent_response)
           }
         },
         overrides: haloContext ? {
