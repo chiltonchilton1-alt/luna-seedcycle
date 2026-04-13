@@ -68,8 +68,32 @@ function AppInner() {
     return () => clearTimeout(timer)
   }, [isEmbed, haloContext])
 
-  // ── ElevenLabs voice hook — callbacks go in startSession in v1.1.0
-  const conversation = useConversation()
+  // ── ElevenLabs voice hook — callbacks registered on hook per official docs
+  const conversation = useConversation({
+    onConnect: () => {
+      setVoiceStatus('Listening…')
+      setStatus({ state: 'ready', text: 'Listening' })
+    },
+    onDisconnect: () => {
+      setVoiceStatus('')
+      setStatus({ state: 'ready', text: 'Ready' })
+    },
+    onError: (err) => {
+      console.error('Voice error:', err)
+      setVoiceStatus('Connection error — try again')
+      setStatus({ state: '', text: 'Connection error' })
+    },
+    onMessage: (event) => {
+      resetInactivityTimer()
+    },
+    overrides: haloContext ? {
+      agent: {
+        prompt: {
+          prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
+        }
+      }
+    } : undefined,
+  })
 
   const voiceActive  = conversation.status === 'connected'
   const lunaSpeaking = conversation.isSpeaking
@@ -158,34 +182,7 @@ function AppInner() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({
-        onConnect: () => {
-          setVoiceStatus('Listening…')
-          setStatus({ state: 'ready', text: 'Listening' })
-        },
-        onDisconnect: () => {
-          setVoiceStatus('')
-          setStatus({ state: 'ready', text: 'Ready' })
-        },
-        onError: (err) => {
-          console.error('Voice error:', err)
-          setVoiceStatus('Connection error — try again')
-          setStatus({ state: '', text: 'Connection error' })
-        },
-        onMessage: (event) => {
-          resetInactivityTimer()
-          if (event && event.type === 'agent_response' && event.agent_response) {
-            setVoiceStatus(event.agent_response)
-          }
-        },
-        overrides: haloContext ? {
-          agent: {
-            prompt: {
-              prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
-            }
-          }
-        } : undefined
-      })
+      await conversation.startSession({ agentId: AGENT_ID })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
@@ -493,7 +490,7 @@ function AppInner() {
 
 export default function App() {
   return (
-    <ConversationProvider agentId={AGENT_ID}>
+    <ConversationProvider>
       <AppInner />
     </ConversationProvider>
   )
