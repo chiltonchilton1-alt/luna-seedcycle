@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
-import { useConversation, ConversationProvider } from '@elevenlabs/react'
+import { useConversation } from '@11labs/react'
 import logoSvg from '../logo.svg'
 
 const AGENT_ID = 'agent_5001kehdf6nmeqyr7nf4ga7k3d91'
@@ -68,7 +68,7 @@ function AppInner() {
     return () => clearTimeout(timer)
   }, [isEmbed, haloContext])
 
-  // ── ElevenLabs voice hook — callbacks registered on hook per official docs
+  // ── ElevenLabs voice hook (@11labs/react@0.0.7 API — callbacks on hook)
   const conversation = useConversation({
     onConnect: () => {
       setVoiceStatus('Listening…')
@@ -83,16 +83,12 @@ function AppInner() {
       setVoiceStatus('Connection error — try again')
       setStatus({ state: '', text: 'Connection error' })
     },
-    onMessage: (event) => {
-      resetInactivityTimer()
-    },
-    overrides: haloContext ? {
-      agent: {
-        prompt: {
-          prompt: `You have access to this user's current cycle data. Use it to personalise your responses:\n\nPhase: ${haloContext.phase || 'Unknown'}\nCycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 28}\nSymptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}\nMood: ${haloContext.mood || 'Not logged'}/10\nEnergy: ${haloContext.energy || 'Not logged'}/10\nStreak: ${haloContext.streak || 0} days logged\n\nReference this data naturally in conversation. Make the user feel seen and understood.`
-        }
+    onMessage: ({ message, source }) => {
+      if (message) {
+        resetInactivityTimer()
+        if (source === 'ai') setVoiceStatus(message)
       }
-    } : undefined,
+    },
   })
 
   const voiceActive  = conversation.status === 'connected'
@@ -182,7 +178,7 @@ function AppInner() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({ agentId: AGENT_ID, connectionType: 'webrtc' })
+      await conversation.startSession({ agentId: AGENT_ID })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
@@ -489,11 +485,7 @@ function AppInner() {
 }
 
 export default function App() {
-  return (
-    <ConversationProvider>
-      <AppInner />
-    </ConversationProvider>
-  )
+  return <AppInner />
 }
 
 // ── Styles ────────────────────────────────────────────────────────────────────
