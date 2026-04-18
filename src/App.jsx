@@ -178,7 +178,18 @@ function AppInner() {
   const startVoice = async () => {
     try {
       await navigator.mediaDevices.getUserMedia({ audio: true })
-      await conversation.startSession({ agentId: AGENT_ID })
+      const ctx = haloContext
+      const dynamicVariables = ctx ? {
+        cycle_day: String(ctx.cycleDay ?? 'unknown'),
+        cycle_length: String(ctx.cycleLength ?? '28'),
+        phase: ctx.phase ?? 'unknown',
+        mood: ctx.mood != null ? String(ctx.mood) : 'not logged',
+        energy: ctx.energyLabel ?? (ctx.energy != null ? (ctx.energy <= 3 ? 'low' : ctx.energy <= 6 ? 'medium' : 'high') : 'not logged'),
+        sleep_hours: ctx.sleepHours != null ? String(ctx.sleepHours) : (ctx.sleep ?? 'not logged'),
+        streak: String(ctx.streak ?? 0),
+        goal: ctx.goal ?? 'unknown',
+      } : {}
+      await conversation.startSession({ agentId: AGENT_ID, dynamicVariables })
     } catch (err) {
       setVoiceStatus(err.name === 'NotAllowedError'
         ? 'Microphone denied — check browser settings'
