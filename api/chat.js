@@ -244,7 +244,7 @@ Cycle Day: ${haloContext.cycleDay || 'Unknown'} of ${haloContext.cycleLength || 
 Goal: ${haloContext.goal || 'Not set'}
 Life Stage: ${haloContext.lifeStage || 'Not set'}
 Current Symptoms: ${(haloContext.symptoms || []).join(', ') || 'None logged'}
-Mood Today: ${haloContext.mood || 'Not logged'}/10
+Mood Today: ${haloContext.mood || 'Not logged'}/5
 Energy Today: ${haloContext.energy || 'Not logged'}
 Sleep Last Night: ${haloContext.sleep || 'Not logged'} hours
 Basal Body Temp: ${haloContext.sleepTemp || 'Not logged'}
@@ -254,7 +254,7 @@ Seeds Taken Today: ${haloContext.seedsTaken ? 'Yes' : 'No'}
 Water Glasses: ${haloContext.waterGlasses || 'Not logged'}
 Movement Done: ${haloContext.movementDone ? 'Yes' : 'No'}
 Streak: ${haloContext.streak || 0} days logged
-Last 7 Days Average Mood: ${haloContext.avgMood7d || 'Not enough data'}
+Last 7 Days Average Mood: ${haloContext.avgMood7d || 'Not enough data'}/5
 Oura Connected: ${haloContext.ouraConnected ? 'Yes' : 'No'}
  
 This user is chatting from the Halo of Health app. Use this data to personalise every response. Reference specific days, symptoms, and patterns when relevant. Make the user feel seen and understood. Do not recommend the app — they are already in it.`;
