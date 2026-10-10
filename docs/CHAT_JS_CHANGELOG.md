@@ -1,0 +1,48 @@
+# chat.js v2.0 — change log (September 2026)
+
+Scope: `luna-seedcycle/api/chat.js`. The handler, CORS, request validation, model (`claude-haiku-4-5`), `max_tokens` (600), error handling and response shape are unchanged. Three things changed.
+
+## 1. SYSTEM_PROMPT — rewritten to the September 2026 rules and the reviewed knowledge base
+
+Why the rewrite rather than a patch: the v1 prompt encoded rules that the September one-pager now prohibits (lead with best value; steer to the 4-cycle subscription; "never suggest stopping Seed Cycle"; per-nutrient hormone claims; HRT "safe and effective… lower all-cause mortality"; intermittent-fasting, fibre-gram and sugar-gram targets; creatine for postmenopausal women; "Luna is embedded… never ask which phase"). Patching around those would have left contradictions inside one prompt. The persona, tone rules, three-tier depth structure and critical-rules structure of v1 are preserved in shape and extended.
+
+What is new, block by block:
+- Persona and scope — Stephanie's canonical scope statement; "guide, never coach"; always "Luna".
+- How you answer — the two-to-four-sentence default with ONE offer to go deeper (the fix for "way too thorough"); no caveat-stacking; formatting rules carried from v1 (no markdown, empty line between paragraphs) plus no exclamation marks; the tier logic clarified as type-of-question, not topic.
+- Voice rules — the twelve brand-voice principles from Stephanie's review plus the one-pager register rules (never alarm, no victim framing, precise not clinical, no streak guilt, no memory implication).
+- Critical rules — the hard no-go list (diagnosis; medication incl. contraception and HRT; results; contraception/conception decisions; supplements/oils/protocols; numbers as targets; symptom grading; clinics/practitioners; baby/child; therapy; seed health claims; selling; no improvisation) and the no-softening rule.
+- The redirect — three beats and the standard close; mixed questions; the always-redirect patterns; domestic abuse, substance use, allergic reactions, screening, financial decisions.
+- Crisis — canonical copy verbatim with life-stage insertions; crisis-turn rules; postpartum psychosis emergency copy; intrusive-thoughts principle; eating-disorder always-on; under-18 handling.
+- Seed cycling — what it is; phases; moon; how to eat; contents as plain nutrition; research stance; the standing footnote; start/pause/stop freely.
+- Products, quality, orders — Complete Bundle, sizes, channels, no price figures, freshness protections, credentials, allergy safety, orders/returns/support, customer-experience themes, Oh My Goodness, key links, Halo facts (no tiers).
+- The cycle — Part 1 condensed: architecture, four phases, what normal covers, worth-a-GP list, wearables note, self-regulation lines.
+- Fertility — Part 4 condensed under the "not a fertility-awareness method" rule: signs explained not interpreted; conceiving register; 12/6-month assessment guidance; treatment; loss (Part 5 §5–6 in compressed form with Stephanie's sample lines); termination two-beat; pregnancy not offered as a stage.
+- Postpartum — Part 6 condensed: mother's body never the baby; the cliff and baby blues; recovery; thyroiditis; feeding posture; call-the-midwife list; three mental-health registers with the sample response; never-do list; matrescence.
+- Perimenopause and menopause — Part 2 condensed: the transition, symptom clusters, five stages, still-cycling/not-cycling states, always-worth-a-GP list, foundations, "I don't recognise myself", rage, HRT narrowed, two mental-health registers.
+- Chronic conditions and neurodiversity — Part 7 condensed: the register; the seven conditions with charities; multiple conditions; flares; mental health across the cycle.
+- Foundations — stated once.
+- Named services — the directory with the at-time-of-publishing note.
+
+Removed from v1 (and why): all pricing figures and subscription steering (never sell); "never suggest stopping Seed Cycle" and "keep Seed Cycle present" (retired); flax/pumpkin/sunflower/sesame "supports oestrogen/progesterone/hormone balance/hot flushes" (no health claims); the menopause block's HRT safety/mortality/WHI/window-of-opportunity content, vaginal-oestrogen safety claim, testosterone, fibre/vitamin-D/sugar numbers, creatine (medication and numbers rules); the fertility odds-by-age table and "five non-negotiables" (no numbers as targets; no prescriptions); the PCOS "insulin resistance drives elevated testosterone… resistance training" prescription (rewritten to Part 7's category-level picture); "Seed Cycle is the lead seed cycling consumer brand globally" (unverifiable superlative); the Halo "premium tiers coming soon" line (no tiers).
+
+Size: ~6,550 words / ~10.5k tokens, up from ~2,600 words. Text-Luna has no knowledge base, so this prompt is the knowledge; the caching change below keeps per-turn cost close to v1.
+
+## 2. Context block — person-language and extended signals
+
+"CURRENT USER CYCLE DATA" → "CURRENT CYCLE AND LOG DATA … FOR THE WOMAN YOU ARE TALKING TO". Added fields the new content expects: `lifeStage` (falls back to `goal`), `stillCycling`, `weeksPostpartum`, `feedingState`, `fertilityIntent`, `conditions`. Existing fields (`phase`, `cycleDay`, `cycleLength`, `symptoms`, `mood`, `energy`, `sleep`, `seedsTaken`, `streak`, `avgMood7d`) unchanged in name. "Streak" is now labelled "Days logged in a row" and the instruction forbids using it as pressure. The instruction "Use this data to personalise every response… make the user feel seen" → "use this lightly and specifically… observation, never prophecy… never name a previous loss back… this context is for today's session only". All new fields are optional; missing values render as "Unknown"/"Not stated" and the prompt tells Luna how to behave when they are.
+
+## 3. Prompt caching — the system prompt is sent as two blocks
+
+`system` is now an array: `[{type:'text', text: SYSTEM_PROMPT, cache_control:{type:'ephemeral'}}, {type:'text', text: <context>}]`. The static block is cached across turns and users; the context block is per-session and uncached. This is supported on `anthropic-version: 2023-06-01` and needs no other header. To revert to v1 behaviour, replace `system: buildSystem(haloContext)` with the old string concatenation — nothing else depends on it.
+
+## Not changed, deliberately
+- `max_tokens: 600` — the short-answer default makes first replies far shorter; 600 still allows a full "go deeper" reply.
+- Model — `claude-haiku-4-5`, matching the voice agent.
+- No retrieval added to the text channel. That remains the architectural fork Mike owns; the prompt is written so a future RAG layer can slot in without rewriting the rules.
+
+## Deploy checklist
+1. Replace `api/chat.js`; `node --check api/chat.js`.
+2. Deploy to Vercel; confirm `ANTHROPIC_KEY` unchanged.
+3. Run the 22-question launch test corpus (in the Halo AI essentials one-pager) on the text channel.
+4. Check the Anthropic usage dashboard for cache-read tokens after the first few sessions.
+5. Confirm the Halo client sends the extended `haloContext` fields (or leaves them absent — both are handled).
