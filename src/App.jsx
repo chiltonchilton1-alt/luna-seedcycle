@@ -41,16 +41,61 @@ function AppInner() {
   const isEmbed = new URLSearchParams(window.location.search).get('embed') === 'true'
 
   // postMessage listener — registers immediately on mount
+  //
+  // ORIGIN CHECKED BY HOSTNAME, NOT BY SUBSTRING. This read
+  // `origin.includes('seedcycle.com')`, which also accepts
+  // https://seedcycle.com.attacker.example — and what comes through this
+  // handler is a woman's cycle, mood and symptom data, fed straight into app
+  // state. Adding haloofhealth.com to an `includes` list would have carried
+  // the same hole to the new domain, so the host is parsed properly.
+  //
+  // haloofhealth.com AND www. are both listed. Halo serves from
+  // halo-of-health.vercel.app today, which is the only reason the old list
+  // worked; at the custom-domain switch every context message would have been
+  // dropped and personalisation would have died silently.
   useEffect(() => {
-    const handleMessage = (event) => {
-      // During development, accept messages from any Vercel preview or localhost
-      const origin = event.origin || ''
-      const isAllowed = origin.includes('vercel.app') || origin.includes('localhost') || origin.includes('seedcycle.com')
-      if (!isAllowed) return
-      if (event.data && event.data.type === 'HALO_CONTEXT') {
-        console.log('Luna received Halo context:', event.data.payload)
-        setHaloContext(event.data.payload)
+    const ALLOWED_HOSTS = [
+      'haloofhealth.com',
+      'www.haloofhealth.com',
+      'seedcycle.com',
+      'www.seedcycle.com',
+      'luna.seedcycle.com',
+      'localhost',
+      '127.0.0.1',
+    ]
+    const isAllowedOrigin = (origin) => {
+      let host
+      try {
+        host = new URL(origin).hostname
+      } catch {
+        return false
       }
+      if (ALLOWED_HOSTS.includes(host)) return true
+      // Vercel preview deployments only: a real subdomain of vercel.app.
+      return host === 'vercel.app' || host.endsWith('.vercel.app')
+    }
+
+    const handleMessage = (event) => {
+      // TYPE FIRST, ORIGIN SECOND, deliberately. A page like this receives
+      // postMessages constantly from browser extensions and dev tooling;
+      // checking the origin first would have surfaced an error for every one
+      // of them. Only a message that was actually trying to deliver context
+      // can fail to deliver it.
+      if (!event.data || event.data.type !== 'HALO_CONTEXT') return
+
+      if (!isAllowedOrigin(event.origin || '')) {
+        // NOT A SILENT RETURN. This was `if (!isAllowed) return` with no log
+        // and no fallback, so a rejected origin looked exactly like Luna
+        // simply having no context, and the one surface that would have shown
+        // it — her personalisation quietly vanishing — says nothing on its own.
+        console.error('[Luna] HALO_CONTEXT rejected from origin:', event.origin)
+        setStatus({ state: '', text: 'Personalisation unavailable' })
+        return
+      }
+
+      // The payload is NOT logged. It carried her cycle day, phase, mood,
+      // symptoms and sleep into the browser console on every load.
+      setHaloContext(event.data.payload)
     }
     window.addEventListener('message', handleMessage)
     return () => window.removeEventListener('message', handleMessage)
