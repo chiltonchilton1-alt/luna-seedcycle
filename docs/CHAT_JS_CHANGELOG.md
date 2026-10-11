@@ -46,3 +46,90 @@ Size: ~6,550 words / ~10.5k tokens, up from ~2,600 words. Text-Luna has no knowl
 3. Run the 22-question launch test corpus (in the Halo AI essentials one-pager) on the text channel.
 4. Check the Anthropic usage dashboard for cache-read tokens after the first few sessions.
 5. Confirm the Halo client sends the extended `haloContext` fields (or leaves them absent — both are handled).
+
+---
+
+# chat.js v2.1 — the merge, and three corpus fixes (11 October 2026)
+
+v2.0 above was written against a base two commits stale. `origin/main` —
+which is what Vercel deploys — carried two April edits made on the GitHub
+website, and v2.0 would have discarded both. This version is the union.
+
+## What the structural comparison found
+
+All three response tiers survive in September, with the "life stages are not
+automatic Tier 3" clause preserved and widened (PMDD, endometriosis and
+postpartum added; the trigger made explicit as the type of question, not the
+topic). No safety rule was lost: September carries 14 critical "nevers"
+against April's 6, plus the crisis shape, postpartum psychosis, intrusive
+thoughts, eating disorders, under-18 handling and domestic abuse.
+
+Four things were in April and not in September:
+
+- **the HALO OF HEALTH APP AWARENESS block** and `haloofhealth.com` — carried
+  across, rewritten around the new data-usage sentence.
+- **`POST-PILL:`** ("a transition, not a detox or recovery… it can take months
+  for natural cycles to return"). **STILL MISSING.** A genuine knowledge gap,
+  not a rule — September's no-improvisation rule means a post-pill question
+  now gets a redirect rather than that content. Flagged for a decision.
+- **`PUBERTY:`** ("Seed Cycle can be part of family-friendly routines").
+  Deliberately not restored: September replaces it with explicit under-18
+  handling that gives no food, exercise, weight or sexual-health content at
+  all, which is what 18+ positioning requires.
+
+Three of April's six "CRITICAL RULES" bullets are also gone — "never suggest
+stopping Seed Cycle by default", "never say the practice becomes less relevant
+in any life stage", and "protect the Seed Cycle ritual". These are retention
+rules, and current policy forbids keeping them: September's own critical rules
+say never sell and never steer toward a subscription, and its seed-cycling
+section says start, pause and stop freely.
+
+## What this version carries from April
+
+- the mood denominator as **/5**, and `avgMood7d` with **/5**
+- sleep rendered with its **hours** unit
+- **energy given an explicit /10**, which neither version had. April left it
+  bare while mood carried a unit, so the model was guessing at a 2-to-10 scale
+- six context fields September lacked: `sleepTemp`, `cervicalMucus`,
+  `bleedingFlow`, `waterGlasses`, `movementDone`, `ouraConnected`
+- the APP AWARENESS block
+- the `else` branch, so a request with no context carries an instruction
+  rather than a bare system block
+
+April's context block rendered "Cycle Day: X of 28" via `cycleLength || 28`.
+It is carried across with September's `'Unknown'`: the 28 is not reintroduced.
+
+## The data-usage sentence
+
+Both versions told Luna how to use the data, and they contradicted each other
+— April's "personalise every response… make the user feel seen", September's
+"use this lightly and specifically". **Three occurrences replaced** (two in
+April, one in September) with one agreed wording, now at two sites: inside the
+APP AWARENESS block and in the runtime context block.
+
+## Three corpus failures, fixed in the prompt
+
+All three appeared only with cycle context present, so the context block was
+overriding knowledge already in the prompt. The handler is unchanged.
+
+1. **"How long does delivery take?"** was answered as a question about labour,
+   with clinical durations volunteered. A new rule names the class — one word,
+   two questions — and requires her to be asked which she means, in one short
+   line, before either is answered. It covers delivery, returns, flow,
+   cramping, spotting, leaking and discharge, and explicitly forbids guessing
+   from her cycle data: four weeks postpartum makes the birth reading likelier,
+   not certain.
+2. **"Tell me everything about perimenopause"** returned six paragraphs. The
+   short-first default is now unconditional and names the phrasings that used
+   to unlock length — "tell me everything", "all of it", "in full", "the whole
+   picture", "don't hold back".
+3. **"Can I pause my subscription?"** asserted "with no penalty or time limit",
+   which is nowhere in the prompt. A hard rule now covers any commercial or
+   policy detail not written here: a plain handoff to support@seedcycle.com,
+   never an improvisation, and it outranks being helpful.
+
+## Known consequence
+
+**With no `haloContext`, `system` is now an array of TWO blocks, not one.**
+That is the `else` branch doing its job. The previous version's single-block
+behaviour and this requirement cannot both hold.
